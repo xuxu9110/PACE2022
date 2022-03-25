@@ -10,6 +10,8 @@
 #include <ctime>
 #include <assert.h>
 #include <limits>
+#include <sstream>
+#include <fstream>
 
 using namespace std;
 
@@ -20,15 +22,61 @@ public:
     vector<vector<int>> endTo;
 
     void getGraph();
+    void getGraph(istream& is);
+    void getGraph(string filePath);
     void showGraph();
 };
 
 void Graph::getGraph() {
-    // TODO
+    getGraph(cin);
+}
+
+void Graph::getGraph(istream& is) {
+    string s;
+    bool isFirstLine = true;
+    int cnt = 1;
+    while (getline(is, s)) {
+        if (!s.empty() && s[0] == '%') {
+            continue;
+        }
+        stringstream sin(s);
+        if (isFirstLine) {
+            sin >> n;
+            startFrom = vector<vector<int>>(n + 1);
+            endTo = vector<vector<int>>(n + 1);
+            isFirstLine = false;
+        } else {
+            int val;
+            while(sin >> val) {
+                startFrom[cnt].push_back(val);
+                endTo[val].push_back(cnt);
+            }
+            if (cnt >= n) {
+                break;
+            }
+            cnt++;
+        }
+    }
+}
+
+void Graph::getGraph(string filepath) {
+    ifstream file(filepath);
+    if (!file.is_open()) {
+        cerr << "could not open the file" << endl;
+    }
+    istream& is = file;
+    getGraph(is);
 }
 
 void Graph::showGraph() {
-    // TODO
+    cout << "n: " << n << endl;
+    for (int i = 1; i <= n; ++i) {
+        cout << "[" << i << "]: ";
+        for (auto val : startFrom[i]) {
+            cout << val << " ";
+        }
+        cout << endl;
+    }
 }
 
 class Topo {
@@ -63,7 +111,10 @@ public:
     uniform_real_distribution<> distr;
 
     void init();
+    void init(string filpath);
     void clear();
+    void showOrder();
+    void showScore();
     // 重新调整score以保证相邻点的分数差距
     void modifyScore();
     // 计算插入点的分数并赋予score[v]
@@ -88,7 +139,9 @@ void Topo::clear() {
     score = vector<Sc>(graph.n + 1, INVALID);
     outdatedVertex.clear();
     vertexNotInOrder.clear();
-    generate_n(inserter(vertexNotInOrder, vertexNotInOrder.end()), graph.n, []{static int x = 1; return x++;});
+    for (int i = 1; i <= graph.n; ++i) {
+        vertexNotInOrder.insert(i);
+    }
     vLeft = vector<int>(graph.n + 1, -1);
     vRight = vector<int>(graph.n + 1, -1);
     deltaLeft = vector<int>(graph.n + 1, -1);
@@ -100,6 +153,33 @@ void Topo::init() {
     clear();
     engine = default_random_engine(time(nullptr));
     distr = uniform_real_distribution<>(0.0, 1.0);
+}
+
+void Topo::init(string filepath) {
+    graph.getGraph(filepath);
+    clear();
+    engine = default_random_engine(time(nullptr));
+    distr = uniform_real_distribution<>(0.0, 1.0);
+}
+
+void Topo::showOrder() {
+    cout << "order: ";
+    for (auto iter = order.begin(); iter != order.end(); ++iter) {
+        cout << *iter << " ";
+    }
+    cout << endl;
+}
+
+void Topo::showScore() {
+    cout << "score: ";
+    for (auto val : score) {
+        if (val == INVALID) {
+            cout << "INV" << " ";
+        } else {
+            cout << val << " ";
+        }
+    }
+    cout << endl;
 }
 
 void Topo::modifyScore() {
@@ -193,11 +273,12 @@ void Topo::chooseRandomMove(int& v, int& i, Topo::Direction &direc) {
     sample(vertexNotInOrder.begin(), vertexNotInOrder.end(), &v, 1, engine);
     direc = (distr(engine) < 0.5) ? LEFT : RIGHT;
     i = (direc == LEFT) ? vLeft[v] : vRight[v];
+    // cout << "v: " << v << " i: " << i << " d: " << direc << endl;
 }
 
 void Topo::insertScore(int v) {
     Iter iter = pos[v].value();
-    int l = scoreRange[0], r = scoreRange[1];
+    Sc l = scoreRange[0], r = scoreRange[1];
     if (iter != order.begin()) {
         l = score[*(--iter)];
         ++iter;
@@ -206,7 +287,7 @@ void Topo::insertScore(int v) {
         r = score[*(++iter)];
         --iter;
     }
-    Sc res = (l + r) / 2;
+    Sc res = l / 2 + r / 2 + (l & r & 1);
     if ((l == res) || (res == r)) {
         modifyScore();
     } else {
@@ -217,6 +298,8 @@ void Topo::insertScore(int v) {
 void Topo::updateVertex(int v) {
     Sc maxScore = scoreRange[0];
     Sc minScore = scoreRange[1];
+    vLeft[v] = -1;
+    vRight[v] = -1;
     deltaLeft[v] = -1;
     deltaRight[v] = -1;
     for (int startV : graph.endTo[v]) {
@@ -259,8 +342,8 @@ void Topo::cooling(double initTemper, double temperScale, int maxMove, int maxFa
         int nbMove = 0;
         bool isFailed = true;
         while (nbMove < maxMove) {
-            int v, i;
-            Direction d;
+            int v = 0, i = 0;
+            Direction d = LEFT;
             chooseRandomMove(v, i, d);
             double delta = (d == LEFT) ? deltaLeft[v] : deltaRight[v];
             if ((delta <= 0.0) || (exp(-delta / temper) >= distr(engine))) {
@@ -282,10 +365,17 @@ void Topo::cooling(double initTemper, double temperScale, int maxMove, int maxFa
     setByOrder(bestOrder);
 }
 
-int main() {
+int main(int argc, char *argv[]) {
     Topo topo;
-    topo.init();
-    topo.cooling(0.6, 0.99, 5 * topo.graph.n, 50);
+    if (argc >= 2) {
+        topo.init(argv[1]);
+    } else {
+        topo.init();
+    }
+    cout << "init done." << endl;
+    // topo.graph.showGraph();
+    topo.cooling(0.6, 0.99, 5 * topo.graph.n, 10);//50);
+    cout << "cooling done." << endl;
     vector<int> res;
     for (int i = 1; i <= topo.graph.n; ++i) {
         if (!topo.pos[i]) {
