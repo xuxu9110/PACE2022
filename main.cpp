@@ -1,4 +1,4 @@
-#define DEBUG
+#define NDEBUG
 
 #include <iostream>
 #include <algorithm>
@@ -12,8 +12,10 @@
 #include <limits>
 #include <sstream>
 #include <fstream>
+#include <chrono>
 
 using namespace std;
+using namespace chrono;
 
 class Graph {
 public:
@@ -41,6 +43,7 @@ void Graph::getGraph(istream& is) {
         }
         stringstream sin(s);
         if (isFirstLine) {
+            cout << s << endl;
             sin >> n;
             startFrom = vector<vector<int>>(n + 1);
             endTo = vector<vector<int>>(n + 1);
@@ -366,24 +369,30 @@ void Topo::cooling(double initTemper, double temperScale, int maxMove, int maxFa
 }
 
 int main(int argc, char *argv[]) {
+    auto start = system_clock::now();
     Topo topo;
     if (argc >= 2) {
         topo.init(argv[1]);
     } else {
         topo.init();
     }
-    cout << "init done." << endl;
+    auto end = system_clock::now();
+    cout << "init done, using time: " << duration_cast<microseconds>(end - start).count() * 1.0 / 1e6 << " s" << endl;
     // topo.graph.showGraph();
-    topo.cooling(0.6, 0.99, 5 * topo.graph.n, 10);//50);
-    cout << "cooling done." << endl;
+    start = system_clock::now();
+    topo.cooling(0.6, 0.99, 5 * topo.graph.n, 50);
+    end = system_clock::now();
+    cout << "cooling done, using time: " << duration_cast<microseconds>(end - start).count() * 1.0 / 1e6 << " s" << endl;
     vector<int> res;
     for (int i = 1; i <= topo.graph.n; ++i) {
         if (!topo.pos[i]) {
             res.push_back(i);
         }
     }
+    cout << "feedback set: ";
     for (int val : res) {
         cout << val << " ";
     }
+    cout << endl << "feedback set size: " << res.size() << endl;
     return 0;
 }
