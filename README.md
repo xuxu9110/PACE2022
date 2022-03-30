@@ -1,6 +1,6 @@
 # PACE2022
 ## 编译
-``g++ main.cpp -o main -std=c++17``
+``g++ topo.h topo.cpp main.cpp -o main -std=c++17``
 ## 执行
 ``.\main {filepath}``  
 若没有filepath则在命令行输入生成图
