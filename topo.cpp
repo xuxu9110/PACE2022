@@ -10,10 +10,6 @@
 
 using namespace std;
 
-void f() {
-    optional<int> i;
-}
-
 void Graph::getGraph() {
     getGraph(cin);
 }
@@ -28,7 +24,6 @@ void Graph::getGraph(istream& is) {
         }
         stringstream sin(s);
         if (isFirstLine) {
-            cout << s << endl;
             sin >> n;
             startFrom = vector<vector<int>>(n + 1);
             endTo = vector<vector<int>>(n + 1);
@@ -80,7 +75,7 @@ void Topo::clear() {
     vRight = vector<int>(graph.n + 1, -1);
     deltaLeft = vector<int>(graph.n + 1, -1);
     deltaRight = vector<int>(graph.n + 1, -1);
-    k = ceil(graph.n / log2(graph.n));
+    k = sqrt(graph.n);
 }
 
 void Topo::init() {
@@ -204,7 +199,10 @@ void Topo::insertOrder(int v, int i, Direction direc) {
 }
 
 void Topo::chooseRandomMove(int& v, int& i, Topo::Direction &direc) {
-    // sample(vertexNotInOrder.begin(), vertexNotInOrder.end(), &v, 1, engine);
+    /*
+    int k = (int) (distr(engine) * vertexNotInOrder.size()) + 1;
+    v = vertexNotInOrder.kth(k);
+    */
     if (vertexNotInOrder.size() <= k) {
         sample(vertexNotInOrder.begin(), vertexNotInOrder.end(), &v, 1, engine);
     } else {

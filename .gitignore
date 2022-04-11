@@ -3,3 +3,4 @@ build/
 *.exe
 *.log
 test.cpp
+data/

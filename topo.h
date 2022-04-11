@@ -5,6 +5,7 @@
 #include <unordered_set>
 #include <list>
 #include <random>
+#include "treap.h"
 
 using namespace std;
 
@@ -35,7 +36,6 @@ public:
 
     typedef unordered_set<int> intSet;
     intSet outdatedVertex;
-    // TODO: 为了方便randomChooseMove弄的，不确定与randomChooseMove中单独生成的情况比哪个更快
     intSet vertexNotInOrder;
     enum Direction {LEFT, RIGHT};
     // vLeft[i]表示以点i为终点的边起点中拓扑排序最后的点编号

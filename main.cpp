@@ -1,6 +1,7 @@
 #include "topo.h"
 #include <chrono>
 #include <iostream>
+#include <fstream>
 
 using namespace chrono;
 
@@ -13,30 +14,46 @@ int main(int argc, char *argv[]) {
         topo.init();
     }
     auto end = system_clock::now();
-    cout << "init done, using time: " << duration_cast<microseconds>(end - start).count() * 1.0 / 1e6 << " s" << endl;
+    
+    string resultPath = "result2/";
+    string statisticPath = "statistic2/";
+    string resultFileName = (argc >= 3) ? argv[2] : "result";
+    string statisticFileName = (argc >= 3) ? argv[2] : "statistic";
+    ofstream statisticFile(statisticPath + statisticFileName);
+
+    statisticFile << "{" << endl << "  \"init_time\": " << duration_cast<microseconds>(end - start).count() << "," << endl;
     // topo.graph.showGraph();
     start = system_clock::now();
     topo.cooling(0.6, 0.99, 5 * topo.graph.n, 50);
     end = system_clock::now();
-    cout << "cooling done, using time: " << duration_cast<microseconds>(end - start).count() * 1.0 / 1e6 << " s" << endl;
+    statisticFile << "  \"cooling_time\": " << duration_cast<microseconds>(end - start).count() << "," << endl;
     vector<int> res;
     for (int i = 1; i <= topo.graph.n; ++i) {
         if (!topo.pos[i]) {
             res.push_back(i);
         }
     }
-    cout << "feedback set: ";
+    ofstream resultFile(resultPath + resultFileName);
     for (int val : res) {
-        cout << val << " ";
+        resultFile << val << endl;
     }
-    cout << endl << "feedback set size: " << res.size() << endl;
-    string statisticName[] = {"number of loop", "number of Jump", "size of best feedback set"};
+    resultFile.close();
+    statisticFile << "  \"feedback_set_size\": " << res.size() << "," << endl;
+    string statisticName[] = {"number_of_loop", "number_of_jump", "size_of_set"};
     for (int i = 0; i < topo.statistic.size(); ++i) {
-        cout << statisticName[i] << ": ";
+        statisticFile << "  \"" << statisticName[i] << "\": [";
+        bool isFirst = true;
         for (int val : topo.statistic[i]) {
-            cout << val << " ";
+            if (!isFirst) {
+                statisticFile << ", ";
+            } else {
+                isFirst = false;
+            }
+            statisticFile << val;
         }
-        cout << endl;
+        statisticFile << (i == 2 ? "]" : "],") << endl;
     }
+    statisticFile << "}";
+    statisticFile.close();
     return 0;
 }
