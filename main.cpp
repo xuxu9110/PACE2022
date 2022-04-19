@@ -1,11 +1,21 @@
+#define _XOPEN_SOURCE
 #include "topo.h"
-#include <chrono>
 #include <iostream>
 #include <fstream>
+#include <unistd.h>
 
-using namespace chrono;
+volatile sig_atomic_t tle = 0;
+
+void term(int signum)
+{
+    // cout << "catch SIGTERM!" << endl;
+    tle = 1;
+}
 
 int main(int argc, char *argv[]) {
+
+    signal(SIGTERM, term);
+
     auto start = system_clock::now();
     Topo topo;
     if (argc >= 2) {
@@ -15,8 +25,8 @@ int main(int argc, char *argv[]) {
     }
     auto end = system_clock::now();
     
-    string resultPath = "result2/";
-    string statisticPath = "statistic2/";
+    string resultPath = "result/";
+    string statisticPath = "statistic/";
     string resultFileName = (argc >= 3) ? argv[2] : "result";
     string statisticFileName = (argc >= 3) ? argv[2] : "statistic";
     ofstream statisticFile(statisticPath + statisticFileName);
@@ -24,7 +34,7 @@ int main(int argc, char *argv[]) {
     statisticFile << "{" << endl << "  \"init_time\": " << duration_cast<microseconds>(end - start).count() << "," << endl;
     // topo.graph.showGraph();
     start = system_clock::now();
-    topo.cooling(0.6, 0.99, 5 * topo.graph.n, 50);
+    topo.cooling(0.6, 0.99, 5 * topo.graph.n, 50, tle);
     end = system_clock::now();
     statisticFile << "  \"cooling_time\": " << duration_cast<microseconds>(end - start).count() << "," << endl;
     vector<int> res;

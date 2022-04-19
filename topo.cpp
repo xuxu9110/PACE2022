@@ -115,6 +115,7 @@ void Topo::showScore() {
 }
 
 void Topo::modifyScore() {
+    score = vector<Sc>(graph.n + 1, INVALID);
     int size = order.size() + 1;
     int cnt = 1;
     for (auto iter = order.begin(); iter != order.end(); ++iter) {
@@ -187,15 +188,16 @@ void Topo::insertOrder(int v, int i, Direction direc) {
     }
     // S={点v、移除点}，将S与S的相邻点update
     rmVertex.insert(v);
+    outdatedVertex.insert(rmVertex.begin(), rmVertex.end());
     for (int setv : rmVertex) {
         outdatedVertex.insert(graph.startFrom[setv].begin(), graph.startFrom[setv].end());
         outdatedVertex.insert(graph.endTo[setv].begin(), graph.endTo[setv].end());
     }
     // TODO: 不知道在用到对应数据时才更新是否会更快
-    for (int odVertex : outdatedVertex) {
+    /* for (int odVertex : outdatedVertex) {
         updateVertex(odVertex);
     }
-    outdatedVertex.clear();
+    outdatedVertex.clear(); */
 }
 
 void Topo::chooseRandomMove(int& v, int& i, Topo::Direction &direc) {
@@ -212,6 +214,10 @@ void Topo::chooseRandomMove(int& v, int& i, Topo::Direction &direc) {
                 break;
             }
         }
+    }
+    if (outdatedVertex.find(v) != outdatedVertex.end()) {
+        updateVertex(v);
+        outdatedVertex.erase(v);
     }
     direc = (distr(engine) < 0.5) ? LEFT : RIGHT;
     i = (direc == LEFT) ? vLeft[v] : vRight[v];
@@ -275,7 +281,10 @@ void Topo::updateVertex(int v) {
     };
 }
 
-void Topo::cooling(double initTemper, double temperScale, int maxMove, int maxFail) {
+void Topo::cooling(double initTemper, double temperScale, int maxMove, int maxFail, volatile sig_atomic_t &tle) {
+    auto start = system_clock::now();
+    // time_t tt = system_clock::to_time_t(start);
+    // cout << "now is " << ctime(&tt);
     clear();
     double temper = initTemper;
     int nbFail = 0;
@@ -300,6 +309,18 @@ void Topo::cooling(double initTemper, double temperScale, int maxMove, int maxFa
                     bestOrder = order;
                     isFailed = false;
                 }
+            }
+            if (duration_cast<seconds>(system_clock::now() - start).count() >= 595) {
+                // tt = system_clock::to_time_t(system_clock::now());
+                // cout << ctime(&tt);
+                raise(SIGTERM);
+            }
+            if (tle) {
+                statistic[0].push_back(nbLoop);
+                statistic[1].push_back(nbJump);
+                statistic[2].push_back(graph.n - bestOrder.size());
+                setByOrder(bestOrder);
+                return;
             }
         }
         statistic[0].push_back(nbLoop);

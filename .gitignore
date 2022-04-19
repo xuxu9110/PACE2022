@@ -1,6 +1,11 @@
 build/
 .vscode/
-*.exe
+main*.exe
 *.log
 test.cpp
 data/
+result*/
+statistic*/
+out/
+out*.csv
+experiment2.py

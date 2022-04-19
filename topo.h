@@ -5,9 +5,12 @@
 #include <unordered_set>
 #include <list>
 #include <random>
+#include <chrono>
+#include <csignal>
 #include "treap.h"
 
 using namespace std;
+using namespace chrono;
 
 class Graph {
 public:
@@ -76,7 +79,7 @@ public:
     // 更新点v的vL/R和deltaL/R
     void updateVertex(int v);
     // 用退火算法寻找最长拓扑排序
-    void cooling(double initTemper, double temperScale, int maxMove, int maxFail);
+    void cooling(double initTemper, double temperScale, int maxMove, int maxFail, volatile sig_atomic_t &tle);
 };
 
 
