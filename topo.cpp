@@ -235,8 +235,8 @@ void Topo::insertScore(int v) {
         r = score[*(++iter)];
         --iter;
     }
-    Sc res = l / 2 + r / 2 + (l & r & 1);
-    if ((l == res) || (res == r)) {
+    Sc res = (l >> 1) + (r >> 1) + (l & r & 1);
+    if ((l >= res) || (res >= r)) {
         modifyScore();
     } else {
         score[v] = res;

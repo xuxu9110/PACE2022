@@ -39,7 +39,7 @@ int main(int argc, char *argv[]) {
     statisticFile << "  \"cooling_time\": " << duration_cast<microseconds>(end - start).count() << "," << endl;
     vector<int> res;
     for (int i = 1; i <= topo.graph.n; ++i) {
-        if (!topo.pos[i]) {
+        if (!topo.pos[i].has_value()) {
             res.push_back(i);
         }
     }
