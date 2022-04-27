@@ -1,14 +1,106 @@
-#define NDEBUG
+#define _XOPEN_SOURCE
 
-#include "topo.h"
+#include <vector>
+#include <unordered_set>
+#include <set>
+#include <list>
+#include <random>
+#include <chrono>
+#include <csignal>
+#include <algorithm>
 #include <iostream>
 #include <sstream>
-#include <fstream>
 #include <ctime>
-#include <set>
-#include <assert.h>
 
 using namespace std;
+using namespace chrono;
+
+typedef unordered_set<int> intSet;
+
+volatile sig_atomic_t tle = 0;
+
+void term(int signum)
+{
+    // cout << "catch SIGTERM!" << endl;
+    tle = 1;
+}
+
+class Graph {
+public:
+    int n = 0;
+    vector<vector<int>> startFrom;
+    vector<vector<int>> endTo;
+
+    // 通过预处理得知必然在反馈点集里的点
+    intSet excludeVertex;
+    // 通过预处理得知必然在拓扑排序里的点
+    intSet includeVertex;
+    // 预处理后图中还有的其他点
+    intSet vertex;
+
+    void getGraph();
+    void getGraph(istream& is);
+    void deleteVertex(int v);
+    // 预处理
+    void preprocessing();
+};
+
+class Topo {
+public:
+    Graph graph;
+    // 拓扑排序
+    list<int> order;
+    typedef list<int>::iterator Iter;
+    vector<optional<Iter>> pos;
+
+    typedef int Sc;
+    vector<Sc> score;
+    const Sc INVALID = numeric_limits<Sc>::min();
+    const Sc scoreRange[2] = {numeric_limits<Sc>::min(), numeric_limits<Sc>::max()};
+
+    intSet outdatedVertex;
+    intSet vertexNotInOrder;
+    enum Direction {LEFT, RIGHT};
+    // vLeft[i]表示以点i为终点的边起点中拓扑排序最后的点编号
+    vector<int> vLeft;
+    // vRight[i]表示以点i为起点的边终点中拓扑排序最前的点编号
+    vector<int> vRight;
+    // deltaLeft[i]表示将点i接在vLeft[i]后面时反馈集大小的变化
+    vector<int> deltaLeft;
+    // deltaRight[i]表示将点i接在vRight[i]前面时反馈集大小的变化
+    vector<int> deltaRight;
+
+    // [0]表示每轮迭代次数，[1]表示每轮delta>0的步数，[2]表示每轮的最佳反馈集大小
+    vector<vector<int>> statistic;
+    // 优化随机算法用
+    int k;
+    
+    // 生成随机数用
+    default_random_engine engine;
+    uniform_real_distribution<> distr;
+
+    void init();
+    void clear();
+    // 重新调整score以保证相邻点的分数差距
+    void modifyScore();
+    // 计算插入点的分数并赋予score[v]
+    void insertScore(int v);
+    // 根据newOrder调整参数
+    void setByOrder(list<int> newOrder);
+    // 从拓扑排序中移除点v
+    void removeFromOrder(int v);
+    // 插入点v以生成新的拓扑排序，direc表示点i是点v的vLeft/vRight，若i为-1则为插入开头或结尾
+    void insertOrder(int v, int i, Direction direc);
+    // 随机选择一个不在order里的点、插入位置与其对应L/R
+    void chooseRandomMove(int& v, int& i, Direction& direc);
+    // 更新点v的vL/R和deltaL/R
+    void updateVertex(int v);
+    // 用退火算法寻找最长拓扑排序
+    void cooling(double initTemper, double temperScale, int maxMove, int maxFail, volatile sig_atomic_t &tle);
+    // 生成初始解
+    void generateInitialOrder();
+};
+
 
 void Graph::getGraph() {
     getGraph(cin);
@@ -46,26 +138,6 @@ void Graph::getGraph(istream& is) {
     }
 }
 
-void Graph::getGraph(string filepath) {
-    ifstream file(filepath);
-    if (!file.is_open()) {
-        cerr << "could not open the file" << endl;
-    }
-    istream& is = file;
-    getGraph(is);
-}
-
-void Graph::showGraph() {
-    cout << "n: " << n << endl;
-    for (int i : vertex) {
-        cout << "[" << i << "]: ";
-        for (auto val : startFrom[i]) {
-            cout << val << " ";
-        }
-        cout << endl;
-    }
-}
-
 void Graph::deleteVertex(int v) {
     for (int j : startFrom[v]) {
         auto it = find(endTo[j].begin(), endTo[j].end(), v);
@@ -85,11 +157,6 @@ void Graph::deleteVertex(int v) {
 }
 
 void Graph::preprocessing() {
-    /*
-     1. 若有点v入度或出度为0，则点v必然在拓扑序列中，可删去；
-     2. 若有点v入度初度均为1，假设两条边为(a,v)和(v,b)，则该点必然在拓扑序列中，可删去，之后添加边(a,b)；
-     3. 若有点出现自环，则该点必然在反馈集中，可删去；
-    */
     int size = -1;
     while (vertex.size() != size) {
         size = vertex.size();
@@ -138,35 +205,6 @@ void Topo::init() {
     statistic = vector<vector<int>>(3, vector<int>(0));
 }
 
-void Topo::init(string filepath) {
-    graph.getGraph(filepath);
-    graph.preprocessing();
-    clear();
-    engine = default_random_engine(time(nullptr));
-    distr = uniform_real_distribution<>(0.0, 1.0);
-    statistic = vector<vector<int>>(3, vector<int>(0));
-}
-
-void Topo::showOrder() {
-    cout << "order: ";
-    for (auto iter = order.begin(); iter != order.end(); ++iter) {
-        cout << *iter << " ";
-    }
-    cout << endl;
-}
-
-void Topo::showScore() {
-    cout << "score: ";
-    for (auto val : score) {
-        if (val == INVALID) {
-            cout << "INV" << " ";
-        } else {
-            cout << val << " ";
-        }
-    }
-    cout << endl;
-}
-
 void Topo::modifyScore() {
     score = vector<Sc>(graph.n + 1, INVALID);
     int size = order.size() + 1;
@@ -194,7 +232,6 @@ void Topo::setByOrder(list<int> newOrder) {
 }
 
 void Topo::removeFromOrder(int v) {
-    assert(pos[v].has_value());
     Iter iter = pos[v].value();
     order.erase(iter);
     pos[v] = nullopt;
@@ -213,7 +250,6 @@ void Topo::insertOrder(int v, int i, Direction direc) {
             pos[v] = --order.end();
         }
     } else {
-        assert(pos[i].has_value());
         Iter iter = pos[i].value();
         if (direc == LEFT) {
             iter++;
@@ -334,8 +370,6 @@ void Topo::updateVertex(int v) {
 
 void Topo::cooling(double initTemper, double temperScale, int maxMove, int maxFail, volatile sig_atomic_t &tle) {
     auto start = system_clock::now();
-    // time_t tt = system_clock::to_time_t(start);
-    // cout << "now is " << ctime(&tt);
     double temper = initTemper;
     int nbFail = 0;
     list<int> bestOrder = order;
@@ -360,9 +394,7 @@ void Topo::cooling(double initTemper, double temperScale, int maxMove, int maxFa
                     isFailed = false;
                 }
             }
-            if (duration_cast<seconds>(system_clock::now() - start).count() >= 595) {
-                // tt = system_clock::to_time_t(system_clock::now());
-                // cout << ctime(&tt);
+            if (duration_cast<seconds>(system_clock::now() - start).count() >= 590) {
                 raise(SIGTERM);
             }
             if (tle) {
@@ -425,4 +457,27 @@ void Topo::generateInitialOrder() {
         }
     }
     setByOrder(newOrder);
+}
+
+int main() {
+    signal(SIGTERM, term);
+
+    auto start = system_clock::now();
+    Topo topo;
+    topo.init();
+    auto end = system_clock::now();
+
+    topo.generateInitialOrder();
+    topo.cooling(0.6, 0.99, 5 * topo.graph.n, 50, tle);
+    vector<int> res(topo.graph.excludeVertex.begin(), topo.graph.excludeVertex.end());
+    for (int i : topo.graph.vertex) {
+        if (!topo.pos[i].has_value()) {
+            res.push_back(i);
+        }
+    }
+    sort(res.begin(), res.end());
+    for (int val : res) {
+        cout << val << endl;
+    }
+    return 0;
 }
