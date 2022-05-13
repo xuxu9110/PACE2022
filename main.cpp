@@ -42,7 +42,8 @@ int main(int argc, char *argv[]) {
     statisticFile << "  \"generate_initial_order_time\": " << duration_cast<microseconds>(end - start).count() << "," << endl;
     statisticFile << "  \"initial_order_size\": " << topo.order.size() << "," << endl;
     start = system_clock::now();
-    topo.cooling(0.6, 0.99, 5 * topo.graph.n, 50, tle);
+    topo.cooling(0.6, 0.99, 5 * topo.graph.n, 595, tle);
+    //topo.cooling1(5, 1, 5 * topo.graph.vertex.size(), 595, tle);
     end = system_clock::now();
     statisticFile << "  \"cooling_time\": " << duration_cast<microseconds>(end - start).count() << "," << endl;
 
@@ -59,20 +60,9 @@ int main(int argc, char *argv[]) {
     }
     resultFile.close();
     statisticFile << "  \"feedback_set_size\": " << res.size() << "," << endl;
-    string statisticName[] = {"number_of_loop", "number_of_jump", "size_of_set"};
-    for (int i = 0; i < topo.statistic.size(); ++i) {
-        statisticFile << "  \"" << statisticName[i] << "\": [";
-        bool isFirst = true;
-        for (int val : topo.statistic[i]) {
-            if (!isFirst) {
-                statisticFile << ", ";
-            } else {
-                isFirst = false;
-            }
-            statisticFile << val;
-        }
-        statisticFile << (i == 2 ? "]" : "],") << endl;
-    }
+    statisticFile << "  \"number_of_loop\": " << topo.statistic[0] << "," << endl;
+    statisticFile << "  \"number_of_move\": " << topo.statistic[1] << "," << endl;
+    statisticFile << "  \"size_of_set\": " << topo.statistic[2] << endl;
     statisticFile << "}";
     statisticFile.close();
     return 0;

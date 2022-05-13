@@ -56,14 +56,14 @@ void Treap::insert(Node* &p, int value) {
             return;
         } else if (value < p->data) {
             insert(p->left, value);
+            if(p->left->priority > p->priority) {
+                rightRotate(p);
+            }
         } else {
             insert(p->right, value);
-        }
-
-        if(p->left && p->left->priority > p->priority) {
-            rightRotate(p);
-        } else if(p->right && p->right->priority < p->priority) {
-            leftRotate(p);
+            if(p->right->priority < p->priority) {
+                leftRotate(p);
+            }
         }
     }
     p->modifySize();

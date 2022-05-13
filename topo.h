@@ -4,10 +4,12 @@
 #include <vector>
 #include <unordered_set>
 #include <list>
+#include <stack>
 #include <random>
 #include <chrono>
 #include <csignal>
 #include <algorithm>
+#include <optional>
 #include "treap.h"
 
 using namespace std;
@@ -34,7 +36,18 @@ public:
     void showGraph();
     void deleteVertex(int v);
     // 预处理
-    void preprocessing();
+    bool preprocessing();
+
+    vector<vector<int>> scc;
+    int sccNum;
+    stack<int> s, t;
+    vector<bool> isInStack;
+    vector<int> timestamp;
+    vector<int> sccIndex;
+    int index;
+    void getScc();
+    void gabow(int i);
+    bool splitByScc();
 };
 
 class Topo {
@@ -50,8 +63,10 @@ public:
     const Sc INVALID = numeric_limits<Sc>::min();
     const Sc scoreRange[2] = {numeric_limits<Sc>::min(), numeric_limits<Sc>::max()};
 
-    intSet outdatedVertex;
-    intSet vertexNotInOrder;
+    vector<bool> isOutdated;
+    enum State {IGNORED, IN, OUT};
+    vector<State> isInOrder;
+    Treap vertexNotInOrder;
     enum Direction {LEFT, RIGHT};
     // vLeft[i]表示以点i为终点的边起点中拓扑排序最后的点编号
     vector<int> vLeft;
@@ -62,8 +77,8 @@ public:
     // deltaRight[i]表示将点i接在vRight[i]前面时反馈集大小的变化
     vector<int> deltaRight;
 
-    // [0]表示每轮迭代次数，[1]表示每轮delta>0的步数，[2]表示每轮的最佳反馈集大小
-    vector<vector<int>> statistic;
+    // [0]表示循环次数，[1]表示移动步数，[2]表示最佳反馈集大小
+    vector<int> statistic;
     // 优化随机算法用
     int k;
     
@@ -91,7 +106,8 @@ public:
     // 更新点v的vL/R和deltaL/R
     void updateVertex(int v);
     // 用退火算法寻找最长拓扑排序
-    void cooling(double initTemper, double temperScale, int maxMove, int maxFail, volatile sig_atomic_t &tle);
+    void cooling(double initTemper, double temperScale, int maxMove, int time, volatile sig_atomic_t &tle);
+    void cooling1(int maxFail, int scale, int maxMove, int time, volatile sig_atomic_t &tle);
     // 生成初始解
     void generateInitialOrder();
 };

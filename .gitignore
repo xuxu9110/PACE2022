@@ -3,10 +3,11 @@ build/
 main*.exe
 *.log
 test.cpp
-data/
+data*/
 result*/
 statistic*/
 out/
 out*.csv
 experiment2.py
 *.pptx
+会议*

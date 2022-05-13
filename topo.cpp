@@ -84,25 +84,27 @@ void Graph::deleteVertex(int v) {
     vertex.erase(v);
 }
 
-void Graph::preprocessing() {
-    /*
-     1. 若有点v入度或出度为0，则点v必然在拓扑序列中，可删去；
-     2. 若有点v入度初度均为1，假设两条边为(a,v)和(v,b)，则该点必然在拓扑序列中，可删去，之后添加边(a,b)；
-     3. 若有点出现自环，则该点必然在反馈集中，可删去；
-    */
+bool Graph::preprocessing() {
     int size = -1;
+    bool isChanged = false;
     while (vertex.size() != size) {
+        if (size != -1) {
+            isChanged = true;
+        }
         size = vertex.size();
         for (auto it = vertex.begin(); it != vertex.end(); ) {
             int i = *it;
             it++;
             if (startFrom[i].empty() || endTo[i].empty()) {
+                // 若有点v入度或出度为0，则点v必然在拓扑序列中，可删去
                 includeVertex.insert(i);
                 deleteVertex(i);
             } else if (find(startFrom[i].begin(), startFrom[i].end(), i) != startFrom[i].end()) {
+                // 若有点出现自环，则该点必然在反馈集中，可删去
                 excludeVertex.insert(i);
                 deleteVertex(i);
             } else if (startFrom[i].size() == 1 && endTo[i].size() == 1) {
+                // 若有点v入度初度均为1且无自环，假设两条边为(a,v)和(v,b)，则该点必然在拓扑序列中，可删去，之后添加边(a,b)
                 int a = endTo[i].at(0), b = startFrom[i].at(0);
                 includeVertex.insert(i);
                 deleteVertex(i);
@@ -114,37 +116,147 @@ void Graph::preprocessing() {
             }
         }
     }
+    return isChanged;
+}
+
+void Graph::getScc() {
+    sccNum = 0;
+    index = 0;
+    scc = vector<vector<int>>(n + 1);
+    isInStack = vector<bool>(n + 1, false);
+    timestamp = vector<int>(n + 1, 0);
+    sccIndex = vector<int>(n + 1, -1);
+    for (int i : vertex) {
+        if (!timestamp[i]) {
+            gabow(i);
+        }
+    }
+}
+
+void Graph::gabow(int i) {
+    typedef pair<int, bool> P;
+    stack<P> stk;
+    stk.push(make_pair(i, false));
+    while (!stk.empty()) {
+        P now = stk.top();
+        int j = now.first;
+        if (now.second) {
+            while (timestamp[t.top()] > timestamp[j]) {
+                t.pop();
+            }
+            stk.pop();
+        }
+        else if (!timestamp[j]) {
+            s.push(j);
+            t.push(j);
+            isInStack[j] = true;
+            timestamp[j] = ++index;
+            for (auto it = startFrom[j].begin(); it != startFrom[j].end(); it++) {
+                if (!timestamp[*it]) {
+                    stk.push(make_pair(*it, false));
+                } else if (isInStack[*it]) {
+                    stk.push(make_pair(*it, true));
+                }
+            }
+        } else {
+            if (j == t.top()) {
+                t.pop();
+                while (s.top() != j) {
+                    scc[sccNum].push_back(s.top());
+                    sccIndex[s.top()] = sccNum;
+                    isInStack[s.top()] = false;
+                    s.pop();
+                }
+                scc[sccNum].push_back(j);
+                sccIndex[j] = sccNum;
+                isInStack[j] = false;
+                s.pop();
+                sccNum++;
+            }
+            stk.pop();
+        }
+    }
+}
+
+
+bool Graph::splitByScc() {
+    vector<int>::iterator it;
+    bool isChanged = false;
+    for (int i : vertex) {
+        for (auto it = startFrom[i].begin(); it != startFrom[i].end();) {
+            int end = *it;
+            if (sccIndex[i] != sccIndex[end]) {
+                isChanged = true;
+                startFrom[i].erase(it);
+                auto it1 = find(endTo[end].begin(), endTo[end].end(), i);
+                if (it1 != endTo[end].end()) {
+                    endTo[end].erase(it1);
+                }
+            } else {
+                it++;
+            }
+        }
+    }
+    return isChanged;
 }
 
 void Topo::clear() {
     order.clear();
     pos = vector<optional<Iter>>(graph.n + 1, nullopt);
     score = vector<Sc>(graph.n + 1, INVALID);
-    outdatedVertex.clear();
-    vertexNotInOrder = graph.vertex;
+    isOutdated = vector<bool>(graph.n + 1, false);
+    isInOrder = vector<State>(graph.n + 1, IGNORED);
+    vertexNotInOrder.clear();
+    for (int i : graph.vertex) {
+        vertexNotInOrder.insert(i);
+        isInOrder[i] = OUT;
+    }
     vLeft = vector<int>(graph.n + 1, -1);
     vRight = vector<int>(graph.n + 1, -1);
     deltaLeft = vector<int>(graph.n + 1, -1);
     deltaRight = vector<int>(graph.n + 1, -1);
-    k = sqrt(graph.n);
+    k = graph.n;
+    for (int i = 0; i < 3; ++i) {
+        k = graph.n / log2(k);
+    }
 }
 
 void Topo::init() {
     graph.getGraph();
+    graph.getScc();
+    graph.splitByScc();
     graph.preprocessing();
+    bool isChanged = true;
+    while (isChanged) {
+        graph.getScc();
+        isChanged = graph.splitByScc();
+        if (isChanged) {
+            isChanged = graph.preprocessing();
+        }
+    }
     clear();
     engine = default_random_engine(time(nullptr));
     distr = uniform_real_distribution<>(0.0, 1.0);
-    statistic = vector<vector<int>>(3, vector<int>(0));
+    statistic = vector<int>(3, 0);
 }
 
 void Topo::init(string filepath) {
     graph.getGraph(filepath);
+    graph.getScc();
+    graph.splitByScc();
     graph.preprocessing();
+    bool isChanged = true;
+    while (isChanged) {
+        graph.getScc();
+        isChanged = graph.splitByScc();
+        if (isChanged) {
+            isChanged = graph.preprocessing();
+        }
+    }
     clear();
     engine = default_random_engine(time(nullptr));
     distr = uniform_real_distribution<>(0.0, 1.0);
-    statistic = vector<vector<int>>(3, vector<int>(0));
+    statistic = vector<int>(3, 0);
 }
 
 void Topo::showOrder() {
@@ -189,8 +301,11 @@ void Topo::setByOrder(list<int> newOrder) {
         score[*iter] = (Sc) ((1 - scale) * scoreRange[0] + scale * scoreRange[1]);
         cnt++;
         vertexNotInOrder.erase(*iter);
+        isInOrder[*iter] = IN;
     }
-    outdatedVertex.insert(graph.vertex.begin(), graph.vertex.end());
+    for (int i : graph.vertex) {
+        isOutdated[i] = true;
+    }
 }
 
 void Topo::removeFromOrder(int v) {
@@ -200,6 +315,7 @@ void Topo::removeFromOrder(int v) {
     pos[v] = nullopt;
     score[v] = INVALID;
     vertexNotInOrder.insert(v);
+    isInOrder[v] = OUT;
 }
 
 void Topo::insertOrder(int v, int i, Direction direc) {
@@ -222,6 +338,7 @@ void Topo::insertOrder(int v, int i, Direction direc) {
     }
     insertScore(v);
     vertexNotInOrder.erase(v);
+    isInOrder[v] = IN;
     // 移除与点v方向相反的点
     intSet rmVertex;
     for (int vertex : graph.endTo[v]) {
@@ -239,36 +356,35 @@ void Topo::insertOrder(int v, int i, Direction direc) {
     }
     // S={点v、移除点}，将S与S的相邻点update
     rmVertex.insert(v);
-    outdatedVertex.insert(rmVertex.begin(), rmVertex.end());
     for (int setv : rmVertex) {
-        outdatedVertex.insert(graph.startFrom[setv].begin(), graph.startFrom[setv].end());
-        outdatedVertex.insert(graph.endTo[setv].begin(), graph.endTo[setv].end());
+        isOutdated[setv] = true;
+        for (int j : graph.startFrom[setv]) {
+            isOutdated[j] = true;
+        }
+        for (int j : graph.endTo[setv]) {
+            isOutdated[j] = true;
+        }
     }
-    // TODO: 不知道在用到对应数据时才更新是否会更快
-    /* for (int odVertex : outdatedVertex) {
-        updateVertex(odVertex);
-    }
-    outdatedVertex.clear(); */
 }
 
 void Topo::chooseRandomMove(int& v, int& i, Topo::Direction &direc) {
-    /*
-    int k = (int) (distr(engine) * vertexNotInOrder.size()) + 1;
-    v = vertexNotInOrder.kth(k);
-    */
     if (vertexNotInOrder.size() <= k) {
-        sample(vertexNotInOrder.begin(), vertexNotInOrder.end(), &v, 1, engine);
+        int k = (int) (distr(engine) * vertexNotInOrder.size()) + 1;
+        v = vertexNotInOrder.kth(k);
+        // sample(vertexNotInOrder.begin(), vertexNotInOrder.end(), &v, 1, engine);
+        // 抛弃数组使用平衡树维护
     } else {
         while (true) {
             v = (int)(distr(engine) * graph.n + 1);
-            if (vertexNotInOrder.find(v) != vertexNotInOrder.end()) {
+            if (isInOrder[v] == OUT) {
                 break;
             }
+            // 可改进为维护一个bool的数组以代替这个find的过程
         }
     }
-    if (outdatedVertex.find(v) != outdatedVertex.end()) {
+    if (isOutdated[v]) {
         updateVertex(v);
-        outdatedVertex.erase(v);
+        isOutdated[v] = false;
     }
     direc = (distr(engine) < 0.5) ? LEFT : RIGHT;
     i = (direc == LEFT) ? vLeft[v] : vRight[v];
@@ -276,6 +392,7 @@ void Topo::chooseRandomMove(int& v, int& i, Topo::Direction &direc) {
 }
 
 void Topo::insertScore(int v) {
+    assert(pos[v].has_value());
     Iter iter = pos[v].value();
     Sc l = scoreRange[0], r = scoreRange[1];
     if (iter != order.begin()) {
@@ -332,17 +449,15 @@ void Topo::updateVertex(int v) {
     };
 }
 
-void Topo::cooling(double initTemper, double temperScale, int maxMove, int maxFail, volatile sig_atomic_t &tle) {
+void Topo::cooling(double initTemper, double temperScale, int maxMove, int time, volatile sig_atomic_t &tle) {
     auto start = system_clock::now();
     // time_t tt = system_clock::to_time_t(start);
     // cout << "now is " << ctime(&tt);
     double temper = initTemper;
-    int nbFail = 0;
     list<int> bestOrder = order;
-    while (nbFail < maxFail) {
+    int nbLoop = 0, nbJump = 0;
+    while (true) {
         int nbMove = 0;
-        bool isFailed = true;
-        int nbLoop = 0, nbJump = 0;
         while (nbMove < maxMove) {
             nbLoop++;
             int v = 0, i = 0;
@@ -357,33 +472,70 @@ void Topo::cooling(double initTemper, double temperScale, int maxMove, int maxFa
                 nbMove++;
                 if (order.size() > bestOrder.size()) {
                     bestOrder = order;
-                    isFailed = false;
                 }
             }
-            if (duration_cast<seconds>(system_clock::now() - start).count() >= 595) {
-                // tt = system_clock::to_time_t(system_clock::now());
-                // cout << ctime(&tt);
+            if (duration_cast<seconds>(system_clock::now() - start).count() >= time) {
                 raise(SIGTERM);
             }
             if (tle) {
-                statistic[0].push_back(nbLoop);
-                statistic[1].push_back(nbJump);
-                statistic[2].push_back(graph.vertex.size() - bestOrder.size() + graph.excludeVertex.size());
+                statistic[0] = nbLoop;
+                statistic[1] = nbJump;
+                statistic[2] = graph.vertex.size() - bestOrder.size() + graph.excludeVertex.size();
                 setByOrder(bestOrder);
                 return;
             }
         }
-        statistic[0].push_back(nbLoop);
-        statistic[1].push_back(nbJump);
-        statistic[2].push_back(graph.vertex.size() - bestOrder.size() + graph.excludeVertex.size());
-        if (isFailed) {
-            nbFail++;
-        } else {
-            nbFail = 0;
-        }
         temper *= temperScale;
     }
     setByOrder(bestOrder);
+}
+
+void Topo::cooling1(int maxFail, int scale, int maxMove, int time, volatile sig_atomic_t &tle) {
+    auto start = system_clock::now();
+    // time_t tt = system_clock::to_time_t(start);
+    // cout << "now is " << ctime(&tt);
+    list<int> bestOrder = order;
+    int nbFail = 0;
+    int nbLoop = 0, nbMove = 0;
+    int cnt = 1;
+    int v = 0, i = 0;
+    Direction d = LEFT;
+    while (true) {
+        nbLoop++;
+        chooseRandomMove(v, i, d);
+        int delta = (d == LEFT) ? deltaLeft[v] : deltaRight[v];
+        if (delta < 0) {
+            insertOrder(v, i, d);
+            nbFail = 0;
+            nbMove++;
+            if (order.size() > bestOrder.size()) {
+                bestOrder = order;
+            }
+        } else {
+            nbFail++;
+            if (nbFail >= maxFail) {
+                insertOrder(v, i, d);
+                nbFail = 0;
+                nbMove++;
+            }
+        }
+        if (nbMove >= cnt * maxMove) {
+            maxFail += scale;
+            cnt++;
+        }
+        if (duration_cast<seconds>(system_clock::now() - start).count() >= time) {
+            // tt = system_clock::to_time_t(system_clock::now());
+            // cout << ctime(&tt);
+            raise(SIGTERM);
+        }
+        if (tle) {
+            statistic[0] = nbLoop;
+            statistic[1] = nbMove;
+            statistic[2] = graph.vertex.size() - bestOrder.size() + graph.excludeVertex.size();
+            setByOrder(bestOrder);
+            return;
+        }
+    }
 }
 
 void Topo::generateInitialOrder() {
@@ -393,6 +545,19 @@ void Topo::generateInitialOrder() {
         int sx = newGraph.endTo[x].size();
         int sy = newGraph.endTo[y].size();
         return ((sx != sy) ? (sx < sy) : (x < y));
+        if (sx != sy) {
+            return (sx < sy);
+        } else {
+            int sumx = newGraph.startFrom[x].size();
+            int sumy = newGraph.startFrom[y].size();
+            for (int i : newGraph.endTo[x]) {
+                sumx += newGraph.startFrom[i].size();
+            }
+            for (int i : newGraph.endTo[y]) {
+                sumy += newGraph.startFrom[i].size();
+            }
+            return (sumx != sumy) ? (sumx > sumy) : (x < y);
+        }
     };
     auto orderSet = set<int, decltype(comp)>(comp);
     for (int i : newGraph.vertex) {
@@ -402,25 +567,27 @@ void Topo::generateInitialOrder() {
         auto it = orderSet.begin();
         int v = *it;
         newOrder.push_back(v);
-        orderSet.erase(it);
-        intSet ends = intSet(newGraph.startFrom[v].begin(), newGraph.startFrom[v].end());
-        auto starts = newGraph.endTo[v] ;
-        for (int i : starts) {
-            ends.insert(newGraph.startFrom[i].begin(), newGraph.startFrom[i].end());
+        auto deleteSet = newGraph.endTo[v];
+        deleteSet.push_back(v);
+        intSet involvedSet;
+        for (int i : deleteSet) {
+            involvedSet.insert(newGraph.startFrom[i].begin(), newGraph.startFrom[i].end());
+            involvedSet.insert(newGraph.endTo[i].begin(), newGraph.endTo[i].end());
+            for (int j : newGraph.endTo[i]) {
+                involvedSet.insert(newGraph.startFrom[j].begin(), newGraph.startFrom[j].end());
+            }
+        }
+        for (int i : deleteSet) {
+            orderSet.erase(i);
+            involvedSet.erase(i);
+        }
+        for (int i : involvedSet) {
             orderSet.erase(i);
         }
-        for (int i : starts) {
-            ends.erase(i);
-        }
-        ends.erase(v);
-        for (int i : ends) {
-            orderSet.erase(i);
-        }
-        for (int i : starts) {
+        for (int i : deleteSet) {
             newGraph.deleteVertex(i);
         }
-        newGraph.deleteVertex(v);
-        for (int i : ends) {
+        for (int i : involvedSet) {
             orderSet.insert(i);
         }
     }
