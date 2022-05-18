@@ -82,7 +82,11 @@ Treap::Treap() {
 }
 
 int Treap::size() {
-    return root->size;
+    if (root != nullptr) {
+        return root->size;
+    } else {
+        return 0;
+    }
 }
 
 void Treap::leftRotate(Node* &p) {
@@ -216,10 +220,9 @@ public:
 
     void getGraph();
     void getGraph(istream& is);
-    void showGraph();
     void deleteVertex(int v);
     // 预处理
-    bool preprocessing();
+    void preprocessing();
     
     vector<vector<int>> scc;
     int sccNum;
@@ -230,7 +233,12 @@ public:
     int index;
     void getScc();
     void gabow(int i);
-    bool splitByScc();
+    void splitByScc();
+    void splitByScc(Graph& graph1);
+
+    void PIE();
+    void CORE();
+    void DOME();
 };
 
 class Topo {
@@ -269,6 +277,7 @@ public:
     default_random_engine engine;
     uniform_real_distribution<> distr;
 
+    void preprocessing();
     void init();
     void clear();
     // 重新调整score以保证相邻点的分数差距
@@ -327,17 +336,6 @@ void Graph::getGraph(istream& is) {
     }
 }
 
-void Graph::showGraph() {
-    cout << "n: " << n << endl;
-    for (int i : vertex) {
-        cout << "[" << i << "]: ";
-        for (auto val : startFrom[i]) {
-            cout << val << " ";
-        }
-        cout << endl;
-    }
-}
-
 void Graph::deleteVertex(int v) {
     for (int j : startFrom[v]) {
         auto it = find(endTo[j].begin(), endTo[j].end(), v);
@@ -356,13 +354,9 @@ void Graph::deleteVertex(int v) {
     vertex.erase(v);
 }
 
-bool Graph::preprocessing() {
+void Graph::preprocessing() {
     int size = -1;
-    bool isChanged = false;
     while (vertex.size() != size) {
-        if (size != -1) {
-            isChanged = true;
-        }
         size = vertex.size();
         for (auto it = vertex.begin(); it != vertex.end(); ) {
             int i = *it;
@@ -375,20 +369,35 @@ bool Graph::preprocessing() {
                 // 若有点出现自环，则该点必然在反馈集中，可删去
                 excludeVertex.insert(i);
                 deleteVertex(i);
-            } else if (startFrom[i].size() == 1 && endTo[i].size() == 1) {
-                // 若有点v入度初度均为1且无自环，假设两条边为(a,v)和(v,b)，则该点必然在拓扑序列中，可删去，之后添加边(a,b)
-                int a = endTo[i].at(0), b = startFrom[i].at(0);
+            } else if (startFrom[i].size() == 1) {
+                // 若有点v出度均为1且无自环，假设该边为(v,b)，则该点v必然在拓扑序列中，可删去，b继承v所有的入点
+                int b = startFrom[i].at(0);
                 includeVertex.insert(i);
+                auto ins = endTo[i];
                 deleteVertex(i);
-                auto it1 = find(startFrom[a].begin(), startFrom[a].end(), b);
-                if (it1 == startFrom[a].end()) {
-                    startFrom[a].push_back(b);
-                    endTo[b].push_back(a);
+                for (int j : ins) {
+                    auto it1 = find(endTo[b].begin(), endTo[b].end(), j);
+                    if (it1 == endTo[b].end()) {
+                        endTo[b].push_back(j);
+                        startFrom[j].push_back(b);
+                    }
+                }
+            } else if (endTo[i].size() == 1) {
+                // 若有点v入度均为1且无自环，假设该边为(a,v)，则该点v必然在拓扑序列中，可删去，a继承v所有的出点
+                int a = endTo[i].at(0);
+                includeVertex.insert(i);
+                auto outs = startFrom[i];
+                deleteVertex(i);
+                for (int j : outs) {
+                    auto it1 = find(startFrom[a].begin(), startFrom[a].end(), j);
+                    if (it1 == startFrom[a].end()) {
+                        startFrom[a].push_back(j);
+                        endTo[j].push_back(a);
+                    }
                 }
             }
         }
     }
-    return isChanged;
 }
 
 void Graph::getScc() {
@@ -450,14 +459,12 @@ void Graph::gabow(int i) {
     }
 }
 
-bool Graph::splitByScc() {
+void Graph::splitByScc() {
     vector<int>::iterator it;
-    bool isChanged = false;
     for (int i : vertex) {
         for (auto it = startFrom[i].begin(); it != startFrom[i].end();) {
             int end = *it;
             if (sccIndex[i] != sccIndex[end]) {
-                isChanged = true;
                 startFrom[i].erase(it);
                 auto it1 = find(endTo[end].begin(), endTo[end].end(), i);
                 if (it1 != endTo[end].end()) {
@@ -468,7 +475,146 @@ bool Graph::splitByScc() {
             }
         }
     }
-    return isChanged;
+}
+
+void Graph::splitByScc(Graph& graph1) {
+    vector<int>::iterator it;
+    for (int i : graph1.vertex) {
+        for (int j : graph1.startFrom[i]) {
+            if (graph1.sccIndex[i] != graph1.sccIndex[j]) {
+                auto it = find(startFrom[i].begin(), startFrom[i].end(), j);
+                if (it != startFrom[i].end()) {
+                    startFrom[i].erase(it);
+                }
+                it = find(endTo[j].begin(), endTo[j].end(), i);
+                if (it != endTo[j].end()) {
+                    endTo[j].erase(it);
+                }
+            }
+        }
+    }
+}
+
+void Graph::PIE() {
+    Graph graph1;
+    graph1.n = n;
+    graph1.startFrom = vector<vector<int>>(n + 1);
+    graph1.endTo = vector<vector<int>>(n + 1);
+    graph1.vertex = vertex;
+    for (int i : vertex) {
+        for (int j : startFrom[i]) {
+            if (find(startFrom[j].begin(), startFrom[j].end(), i) == startFrom[j].end()) {
+                graph1.startFrom[i].push_back(j);
+                graph1.endTo[j].push_back(i);
+            }
+        }
+    }
+    graph1.getScc();
+    splitByScc(graph1);
+}
+
+void Graph::CORE() {
+    vector<bool> valid = vector<bool>(n + 1, true);
+    vector<int> PIV;
+    for (int i : vertex) {
+        bool isIIvertex = true;
+        if (startFrom[i].empty() || (startFrom[i].size() != endTo[i].size())) {
+            isIIvertex = false;
+        } else {
+            for (int j : startFrom[i]) {
+                if (find(startFrom[j].begin(), startFrom[j].end(), i) == startFrom[j].end()) {
+                    isIIvertex = false;
+                    break;
+                }
+            }
+        }
+        if (isIIvertex) {
+            PIV.push_back(i);
+        }
+    }
+    auto comp = [this](int x, int y){
+        int sx = startFrom[x].size();
+        int sy = startFrom[y].size();
+        return (sx != sy) ? (sx < sy) : (x < y);
+    };
+    sort(PIV.begin(), PIV.end(), comp);
+    for (int i : PIV) {
+        if (valid[i]) {
+            auto neighbour = startFrom[i];
+            int start = 0, end = 0;
+            bool isClique = true;
+            if (neighbour.size() > 1) {
+                for (int m = 0; m < neighbour.size() - 1; m++) {
+                    start = neighbour[m];
+                    for (int n = m + 1; n < neighbour.size(); n++) {
+                        end = neighbour[n];
+                        if ((find(startFrom[start].begin(), startFrom[start].end(), end) == startFrom[start].end()) || 
+                        (find(startFrom[end].begin(), startFrom[end].end(), start) == startFrom[end].end())) {
+                            isClique = false;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (isClique) {
+                includeVertex.insert(i);
+                excludeVertex.insert(neighbour.begin(), neighbour.end());
+                deleteVertex(i);
+                for (int j : neighbour) {
+                    deleteVertex(j);
+                }
+            }
+            valid[i] = false;
+            for (int j : neighbour) {
+                valid[j] = false;
+            }
+        }
+    }
+}
+
+void Graph::DOME() {
+    for (int i : vertex) {
+        for (auto it = startFrom[i].begin(); it != startFrom[i].end();) {
+            int j = *it;
+            bool isDominated = true;
+            if (find(startFrom[j].begin(), startFrom[j].end(), i) != startFrom[j].end()) {
+                isDominated = false;
+            } else {
+                bool tmp1 = true;
+                for (int pre : endTo[i]) {
+                    if (find(startFrom[i].begin(), startFrom[i].end(), pre) == startFrom[i].end()) {
+                        if (find(endTo[j].begin(), endTo[j].end(), pre) == endTo[j].end()) {
+                            tmp1 = false;
+                            break;
+                        }
+                    }
+                }
+                if (!tmp1) {
+                    bool tmp2 = true;
+                    for (int suc : startFrom[j]) {
+                        if (find(endTo[j].begin(), endTo[j].end(), suc) == endTo[j].end()) {
+                            if (find(startFrom[i].begin(), startFrom[i].end(), suc) == startFrom[i].end()) {
+                                tmp2 = false;
+                                break;
+                            }
+                        }
+                    }
+                    if (!tmp2) {
+                        isDominated = false;
+                    }
+                }
+            }
+            if (isDominated) {
+                startFrom[i].erase(it);
+                auto it1 = find(endTo[j].begin(), endTo[j].end(), i);
+                if (it1 != endTo[j].end()) {
+                    endTo[j].erase(it1);
+                }
+            } else {
+                it++;
+            }
+        }
+    }
 }
 
 void Topo::clear() {
@@ -492,19 +638,20 @@ void Topo::clear() {
     }
 }
 
+void Topo::preprocessing() {
+    int size = -1;
+    while (size != graph.vertex.size()) {
+        size = graph.vertex.size();
+        graph.PIE();
+        graph.CORE();
+        graph.DOME();
+        graph.preprocessing();
+    }
+}
+
 void Topo::init() {
     graph.getGraph();
-    graph.getScc();
-    graph.splitByScc();
-    graph.preprocessing();
-    bool isChanged = true;
-    while (isChanged) {
-        graph.getScc();
-        isChanged = graph.splitByScc();
-        if (isChanged) {
-            isChanged = graph.preprocessing();
-        }
-    }
+    preprocessing();
     clear();
     engine = default_random_engine(time(nullptr));
     distr = uniform_real_distribution<>(0.0, 1.0);
@@ -688,6 +835,13 @@ void Topo::cooling(double initTemper, double temperScale, int maxMove, int time,
     while (true) {
         int nbMove = 0;
         while (nbMove < maxMove) {
+            if (tle || vertexNotInOrder.size() == 0) {
+                statistic[0] = nbLoop;
+                statistic[1] = nbJump;
+                statistic[2] = graph.vertex.size() - bestOrder.size() + graph.excludeVertex.size();
+                setByOrder(bestOrder);
+                return;
+            }
             nbLoop++;
             int v = 0, i = 0;
             Direction d = LEFT;
@@ -706,17 +860,9 @@ void Topo::cooling(double initTemper, double temperScale, int maxMove, int time,
             if (duration_cast<seconds>(system_clock::now() - start).count() >= time) {
                 raise(SIGTERM);
             }
-            if (tle) {
-                statistic[0] = nbLoop;
-                statistic[1] = nbJump;
-                statistic[2] = graph.vertex.size() - bestOrder.size() + graph.excludeVertex.size();
-                setByOrder(bestOrder);
-                return;
-            }
         }
         temper *= temperScale;
     }
-    setByOrder(bestOrder);
 }
 
 void Topo::generateInitialOrder() {

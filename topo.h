@@ -36,7 +36,7 @@ public:
     void showGraph();
     void deleteVertex(int v);
     // 预处理
-    bool preprocessing();
+    void preprocessing();
 
     vector<vector<int>> scc;
     int sccNum;
@@ -47,7 +47,12 @@ public:
     int index;
     void getScc();
     void gabow(int i);
-    bool splitByScc();
+    void splitByScc();
+    void splitByScc(Graph& graph1);
+
+    void PIE();
+    void CORE();
+    void DOME();
 };
 
 class Topo {
@@ -86,6 +91,7 @@ public:
     default_random_engine engine;
     uniform_real_distribution<> distr;
 
+    void preprocessing();
     void init();
     void init(string filpath);
     void clear();

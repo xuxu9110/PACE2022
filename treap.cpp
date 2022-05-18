@@ -22,8 +22,13 @@ Treap::Treap() {
     rng = mt19937(time(nullptr));
 }
 
+
 int Treap::size() {
-    return root->size;
+    if (root != nullptr) {
+        return root->size;
+    } else {
+        return 0;
+    }
 }
 
 void Treap::leftRotate(Node* &p) {
