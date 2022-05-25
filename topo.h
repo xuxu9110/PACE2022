@@ -87,6 +87,8 @@ public:
 
     // [0]表示循环次数，[1]表示移动步数，[2]表示最佳反馈集大小
     vector<int> statistic;
+    // 每一轮温度的下降指数
+    vector<int> temperDegree;
     // 优化随机算法用
     int k;
     // 每个点在拓扑排序中的时间
@@ -120,7 +122,7 @@ public:
     // 更新点v的vL/R和deltaL/R
     void updateVertex(int v);
     // 用退火算法寻找最长拓扑排序
-    void cooling(double initTemper, double temperScale, int maxMove, int maxFail, 
+    void cooling(double initTemper, double temperScale, int maxMove, int initFail, int failStep, 
         system_clock::time_point start, int time, volatile sig_atomic_t &tle);
     // 目标函数，越大越好
     double objFunc(list<int> order);

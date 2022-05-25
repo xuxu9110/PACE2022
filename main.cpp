@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
     statisticFile << "  \"initial_order_size\": " << topo.order.size() << "," << endl;
     start = system_clock::now();
     int size = topo.graph.vertex.size();
-    topo.cooling(0.6, 0.99, 3 * size + 1, 20, allStart, 570, tle);
+    topo.cooling(0.6, 0.99, 3 * size + 1, 30, 20, allStart, 600, tle);
     //topo.search3(8, 10, 3, 3, 600, tle);
     end = system_clock::now();
     statisticFile << "  \"cooling_time\": " << duration_cast<microseconds>(end - start).count() << "," << endl;
@@ -64,7 +64,17 @@ int main(int argc, char *argv[]) {
     statisticFile << "  \"feedback_set_size\": " << res.size() << "," << endl;
     statisticFile << "  \"number_of_loop\": " << topo.statistic[0] << "," << endl;
     statisticFile << "  \"number_of_move\": " << topo.statistic[1] << "," << endl;
-    statisticFile << "  \"size_of_set\": " << topo.statistic[2] << endl;
+    statisticFile << "  \"size_of_set\": " << topo.statistic[2] << "," << endl;
+    statisticFile << "  \"temper_degree\": [";
+    for (auto it = topo.temperDegree.begin(); ; ) {
+        statisticFile << *it;
+        if (++it != topo.temperDegree.end()) {
+            statisticFile << ", ";
+        } else {
+            break;
+        }
+    }
+    statisticFile << "]" << endl;
     statisticFile << "}";
     statisticFile.close();
     return 0;

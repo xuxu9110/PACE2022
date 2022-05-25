@@ -507,6 +507,7 @@ void Topo::init() {
     engine = default_random_engine(time(nullptr));
     distr = uniform_real_distribution<>(0.0, 1.0);
     statistic = vector<int>(3, 0);
+    temperDegree.clear();
 }
 
 void Topo::init(string filepath) {
@@ -516,6 +517,7 @@ void Topo::init(string filepath) {
     engine = default_random_engine(time(nullptr));
     distr = uniform_real_distribution<>(0.0, 1.0);
     statistic = vector<int>(3, 0);
+    temperDegree.clear();
 }
 
 void Topo::showOrder() {
@@ -707,15 +709,17 @@ void Topo::updateVertex(int v) {
     };
 }
 
-void Topo::cooling(double initTemper, double temperScale, int maxMove, int maxFail, 
+void Topo::cooling(double initTemper, double temperScale, int maxMove, int initFail, int failStep, 
                     system_clock::time_point start, int time, volatile sig_atomic_t &tle) {
     double temper = initTemper;
-    double heatScale = 1.0 / pow(temperScale, maxFail);
+    int degree = 0;
+    int maxFail = initFail;
     list<int> bestOrder = order;
     int nbLoop = 0, nbJump = 0, nbFail = 0;
     while (true) {
         int nbMove = 0;
         bool isFailed = true;
+        temperDegree.push_back(degree);
         while (nbMove < maxMove) {
             if (duration_cast<seconds>(system_clock::now() - start).count() >= time) {
                 raise(SIGTERM);
@@ -748,16 +752,22 @@ void Topo::cooling(double initTemper, double temperScale, int maxMove, int maxFa
             nbFail++;
             if (nbFail < maxFail) {
                 temper *= temperScale;
+                degree++;
             } else {
                 nbFail = 0;
-                temper *= heatScale;
+                temper *= 1.0 / pow(temperScale, maxFail);
+                degree -= maxFail;
                 if (temper > initTemper) {
                     temper = initTemper;
+                    degree = 0;
                 }
+                maxFail += failStep;
             }
         } else {
             nbFail = 0;
+            // maxFail = initFail;
             temper *= temperScale;
+            degree++;
         }
     }
 }

@@ -17,7 +17,7 @@ with open(outPath, "w", newline='') as outFile:
     writer = csv.writer(outFile)
     writer.writerow(["file_name", "num_of_vertex", "num_of_edge", "num_of_loop", "num_of_move", "init_time", 
         "generate_initial_order_time", "cooling_time", "size_after_preprocessing", "include_size", "exclude_size", 
-        "initial_order_size", "feedback_set_size", "is_correct"])
+        "initial_order_size", "feedback_set_size", "is_correct", "temper_degree"])
     for fileName in fileNames:
         filePath = dataPath + "\\" + fileName
         os.system(".\\main " + filePath + " " + fileName)
@@ -35,4 +35,4 @@ with open(outPath, "w", newline='') as outFile:
         writer.writerow([fileName, data["number_of_vertex"], data["number_of_edge"], data["number_of_loop"], 
             data["number_of_move"], data["init_time"] / 1e6, data["generate_initial_order_time"] / 1e6, data["cooling_time"] / 1e6, 
             data["size_after_preprocessing"], data["include_size"], data["exclude_size"], data["initial_order_size"], 
-            data["feedback_set_size"], data["is_correct"]])
+            data["feedback_set_size"], data["is_correct"], data["temper_degree"]])
