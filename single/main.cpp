@@ -295,7 +295,8 @@ public:
     // 更新点v的vL/R和deltaL/R
     void updateVertex(int v);
     // 用退火算法寻找最长拓扑排序
-    void cooling(double initTemper, double temperScale, int maxMove, int time, volatile sig_atomic_t &tle);
+    void cooling(double initTemper, double temperScale, int maxMove, int maxFail, 
+                    system_clock::time_point start, int time, volatile sig_atomic_t &tle);
     // 生成初始解
     void generateInitialOrder();
 };
@@ -825,16 +826,19 @@ void Topo::updateVertex(int v) {
     };
 }
 
-void Topo::cooling(double initTemper, double temperScale, int maxMove, int time, volatile sig_atomic_t &tle) {
-    auto start = system_clock::now();
-    // time_t tt = system_clock::to_time_t(start);
-    // cout << "now is " << ctime(&tt);
+void Topo::cooling(double initTemper, double temperScale, int maxMove, int maxFail, 
+                    system_clock::time_point start, int time, volatile sig_atomic_t &tle) {
     double temper = initTemper;
+    double heatScale = 1.0 / pow(temperScale, maxFail);
     list<int> bestOrder = order;
-    int nbLoop = 0, nbJump = 0;
+    int nbLoop = 0, nbJump = 0, nbFail = 0;
     while (true) {
         int nbMove = 0;
+        bool isFailed = true;
         while (nbMove < maxMove) {
+            if (duration_cast<seconds>(system_clock::now() - start).count() >= time) {
+                raise(SIGTERM);
+            }
             if (tle || vertexNotInOrder.size() == 0) {
                 statistic[0] = nbLoop;
                 statistic[1] = nbJump;
@@ -855,13 +859,25 @@ void Topo::cooling(double initTemper, double temperScale, int maxMove, int time,
                 nbMove++;
                 if (order.size() > bestOrder.size()) {
                     bestOrder = order;
+                    isFailed = false;
                 }
             }
-            if (duration_cast<seconds>(system_clock::now() - start).count() >= time) {
-                raise(SIGTERM);
-            }
         }
-        temper *= temperScale;
+        if (isFailed) {
+            nbFail++;
+            if (nbFail < maxFail) {
+                temper *= temperScale;
+            } else {
+                nbFail = 0;
+                temper *= heatScale;
+                if (temper > initTemper) {
+                    temper = initTemper;
+                }
+            }
+        } else {
+            nbFail = 0;
+            temper *= temperScale;
+        }
     }
 }
 
@@ -922,12 +938,19 @@ void Topo::generateInitialOrder() {
 
 
 int main() {
+    auto start = system_clock::now();
     signal(SIGTERM, term);
 
     Topo topo;
     topo.init();
     topo.generateInitialOrder();
-    topo.cooling(0.6, 0.99, 5 * topo.graph.n, 600, tle);
+    int sizeScale = 6, size = topo.graph.vertex.size();
+    if (size > 10000) {
+        sizeScale = 3;
+    } else if (size > 2000) {
+        sizeScale = 5;
+    }
+    topo.cooling(0.6, 0.99, sizeScale * size + 1, 30, start, 600, tle);
     vector<int> res(topo.graph.excludeVertex.begin(), topo.graph.excludeVertex.end());
     for (int i : topo.graph.vertex) {
         if (!topo.pos[i].has_value()) {

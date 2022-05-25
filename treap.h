@@ -26,6 +26,7 @@ private:
     void insert(Node* &p, int value);
     void erase(Node* &p, int value);
     int kth(Node* &p, int k);
+    void copyTo(Node* &src, Node* &dest);
 public:
     Treap();
     int size();
@@ -34,6 +35,7 @@ public:
     Node* find(int x);
     int kth(int k);
     void clear();
+    Treap copy();
 };
 
 #endif

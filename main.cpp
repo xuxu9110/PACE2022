@@ -17,6 +17,7 @@ int main(int argc, char *argv[]) {
     signal(SIGTERM, term);
 
     auto start = system_clock::now();
+    auto allStart = start;
     Topo topo;
     if (argc >= 2) {
         topo.init(argv[1]);
@@ -42,8 +43,9 @@ int main(int argc, char *argv[]) {
     statisticFile << "  \"generate_initial_order_time\": " << duration_cast<microseconds>(end - start).count() << "," << endl;
     statisticFile << "  \"initial_order_size\": " << topo.order.size() << "," << endl;
     start = system_clock::now();
-    topo.cooling(0.6, 0.99, 5 * topo.graph.n, 595, tle);
-    //topo.cooling1(5, 1, 5 * topo.graph.vertex.size(), 595, tle);
+    int size = topo.graph.vertex.size();
+    topo.cooling(0.6, 0.99, 3 * size + 1, 20, allStart, 570, tle);
+    //topo.search3(8, 10, 3, 3, 600, tle);
     end = system_clock::now();
     statisticFile << "  \"cooling_time\": " << duration_cast<microseconds>(end - start).count() << "," << endl;
 

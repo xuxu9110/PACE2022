@@ -146,3 +146,24 @@ void Treap::clear() {
     }
     root = nullptr;
 }
+
+Treap Treap::copy() {
+    Treap newTreap = Treap();
+    newTreap.rng = rng;
+    if (root == nullptr) return newTreap;
+    newTreap.root = new Node(root->data, root->priority);
+    copyTo(root, newTreap.root);
+    return newTreap;
+}
+
+void Treap::copyTo(Node* &src, Node* &dest) {
+    dest->size = src->size;
+    if (src->left) {
+        dest->left = new Node(src->left->data, src->left->priority);
+        copyTo(src->left, dest->left);
+    }
+    if (src->right) {
+        dest->right = new Node(src->right->data, src->right->priority);
+        copyTo(src->right, dest->right);
+    }
+}

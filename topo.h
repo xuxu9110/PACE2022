@@ -53,6 +53,9 @@ public:
     void PIE();
     void CORE();
     void DOME();
+
+    void dealWithSmallSCC(int maxSize);
+    bool isDAG(vector<int> vertices);
 };
 
 class Topo {
@@ -86,11 +89,16 @@ public:
     vector<int> statistic;
     // 优化随机算法用
     int k;
+    // 每个点在拓扑排序中的时间
+    vector<int> timeInOrder;
+    // 每个点上次加入拓扑排序的时间
+    vector<int> lastTimeInsert;
     
     // 生成随机数用
     default_random_engine engine;
     uniform_real_distribution<> distr;
 
+    Topo copy();
     void preprocessing();
     void init();
     void init(string filpath);
@@ -105,15 +113,22 @@ public:
     void setByOrder(list<int> newOrder);
     // 从拓扑排序中移除点v
     void removeFromOrder(int v);
-    // 插入点v以生成新的拓扑排序，direc表示点i是点v的vLeft/vRight，若i为-1则为插入开头或结尾
-    void insertOrder(int v, int i, Direction direc);
+    // 插入点v以生成新的拓扑排序，direc表示点i是点v的vLeft/vRight，若i为-1则为插入开头或结尾，返回被删除的点集
+    intSet insertOrder(int v, int i, Direction direc);
     // 随机选择一个不在order里的点、插入位置与其对应L/R
     void chooseRandomMove(int& v, int& i, Direction& direc);
     // 更新点v的vL/R和deltaL/R
     void updateVertex(int v);
     // 用退火算法寻找最长拓扑排序
-    void cooling(double initTemper, double temperScale, int maxMove, int time, volatile sig_atomic_t &tle);
-    void cooling1(int maxFail, int scale, int maxMove, int time, volatile sig_atomic_t &tle);
+    void cooling(double initTemper, double temperScale, int maxMove, int maxFail, 
+        system_clock::time_point start, int time, volatile sig_atomic_t &tle);
+    // 目标函数，越大越好
+    double objFunc(list<int> order);
+    // 往M个方向走N步，持续记录移除的所有点，从移除的所有点中选择
+    void search1(int M, int N, int numRand, int maxFail, int time, volatile sig_atomic_t &tle);
+    // 往M个方向走N步，每一步所选取的点都来自前一步移除的点集
+    void search2(int M, int N, int numRand, int maxFail, int time, volatile sig_atomic_t &tle);
+    void search3(int M, int N, int numRand, int maxFail, int time, volatile sig_atomic_t &tle);
     // 生成初始解
     void generateInitialOrder();
 };

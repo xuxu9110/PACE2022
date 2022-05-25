@@ -6,6 +6,8 @@
 #include <fstream>
 #include <ctime>
 #include <set>
+#include <tuple>
+#include <queue>
 #include <assert.h>
 
 using namespace std;
@@ -347,6 +349,122 @@ void Graph::DOME() {
     }
 }
 
+void nextCombination(vector<int>& pre, int size) {
+    int n = pre.size();
+    int ni = n - 1, maxNi = size - 1;
+    while (pre[ni] + 1 > maxNi) {
+        ni--;
+        maxNi--;
+        if (ni < 0) {
+            pre[0] = -1;
+            return;
+        }
+    }
+    pre[ni]++;
+    while (++ni < n) {
+        pre[ni] = pre[ni - 1] + 1;
+    }
+}
+
+void Graph::dealWithSmallSCC(int maxSize) {
+    getScc();
+    for (int i = 0; i < sccNum; ++i) {
+        int size = scc[i].size();
+        if (size <= maxSize) {
+            vector<bool> inDAG(size, false);
+            for (int curSize = 2; curSize <= size - 2; ++curSize) {
+                vector<int> combination(curSize);
+                for (int j = 0; j < curSize; ++j) {
+                    combination[j] = j;
+                }
+                do {
+                    vector<int> vertices;
+                    for (int k : combination) {
+                        vertices.push_back(scc[i][k]);
+                    }
+                    if (isDAG(vertices)) {
+                        for (int k = 0; k < size; ++k) {
+                            inDAG[k] = false;
+                        }
+                        for (int k : combination) {
+                            inDAG[k] = true;
+                        }
+                        break;
+                    }
+                    nextCombination(combination, size);
+                } while (combination[0] >= 0);
+                if (combination[0] < 0) {
+                    break;
+                }
+            }
+            for (int j = 0; j < size; ++j) {
+                int v = scc[i][j];
+                if (inDAG[j]) {
+                    includeVertex.insert(v);
+                } else {
+                    excludeVertex.insert(v);
+                }
+                vertex.erase(v);
+                startFrom[v].clear();
+                endTo[v].clear();
+            }
+        }
+    }
+}
+
+bool Graph::isDAG(vector<int> vertices) {
+    int size = vertices.size();
+    auto sf = vector<vector<int>>(size);
+    auto inDegrees = vector<int>(size, 0);
+    auto isVisited = vector<bool>(size, false);
+    for (int i = 0; i < size; ++i) {
+        auto ends = startFrom[vertices[i]];
+        for (auto end : ends) {
+            int j = 0;
+            while ((j < size) && (vertices[j] != end)) {
+                j++;
+            }
+            if (j < size) {
+                sf[i].push_back(j);
+                inDegrees[j]++;
+            }
+        }
+    }
+    queue<int> q;
+    for (int i = 0; i < size; ++i) {
+        if (inDegrees[i] == 0) {
+            q.push(i);
+        }
+    }
+    while (!q.empty()) {
+        int cur = q.front();
+        q.pop();
+        isVisited[cur] = true;
+        for (int end : sf[cur]) {
+            inDegrees[end]--;
+            if (inDegrees[end] == 0) {
+                q.push(end);
+            }
+        }
+    }
+    for (int j = 0; j < size; ++j) {
+        if (!isVisited[j]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+Topo Topo::copy() {
+    Topo topo = Topo(*this);
+    topo.vertexNotInOrder = vertexNotInOrder.copy();
+    topo.pos = vector<optional<Iter>>(graph.n + 1, nullopt);
+    for (auto iter = topo.order.begin(); iter != topo.order.end(); ++iter) {
+        topo.pos[*iter] = iter;
+    }
+    return topo;
+}
+
 void Topo::clear() {
     order.clear();
     pos = vector<optional<Iter>>(graph.n + 1, nullopt);
@@ -362,6 +480,8 @@ void Topo::clear() {
     vRight = vector<int>(graph.n + 1, -1);
     deltaLeft = vector<int>(graph.n + 1, -1);
     deltaRight = vector<int>(graph.n + 1, -1);
+    timeInOrder = vector<int>(graph.n + 1, 0);
+    lastTimeInsert = vector<int>(graph.n + 1, -1);
     k = graph.n;
     for (int i = 0; i < 3; ++i) {
         k = graph.n / log2(k);
@@ -377,6 +497,7 @@ void Topo::preprocessing() {
         graph.DOME();
         graph.preprocessing();
     }
+    graph.dealWithSmallSCC(9);
 }
 
 void Topo::init() {
@@ -456,7 +577,7 @@ void Topo::removeFromOrder(int v) {
     isInOrder[v] = OUT;
 }
 
-void Topo::insertOrder(int v, int i, Direction direc) {
+intSet Topo::insertOrder(int v, int i, Direction direc) {
     // 插入点v
     if (i == -1) {
         if (direc == LEFT) {
@@ -493,8 +614,9 @@ void Topo::insertOrder(int v, int i, Direction direc) {
         removeFromOrder(vertex);
     }
     // S={点v、移除点}，将S与S的相邻点update
-    rmVertex.insert(v);
-    for (int setv : rmVertex) {
+    intSet updateSet = rmVertex;
+    updateSet.insert(v);
+    for (int setv : updateSet) {
         isOutdated[setv] = true;
         for (int j : graph.startFrom[setv]) {
             isOutdated[j] = true;
@@ -503,21 +625,19 @@ void Topo::insertOrder(int v, int i, Direction direc) {
             isOutdated[j] = true;
         }
     }
+    return rmVertex;
 }
 
 void Topo::chooseRandomMove(int& v, int& i, Topo::Direction &direc) {
     if (vertexNotInOrder.size() <= k) {
         int k = (int) (distr(engine) * vertexNotInOrder.size()) + 1;
         v = vertexNotInOrder.kth(k);
-        // sample(vertexNotInOrder.begin(), vertexNotInOrder.end(), &v, 1, engine);
-        // 抛弃数组使用平衡树维护
     } else {
         while (true) {
             v = (int)(distr(engine) * graph.n + 1);
             if (isInOrder[v] == OUT) {
                 break;
             }
-            // 可改进为维护一个bool的数组以代替这个find的过程
         }
     }
     if (isOutdated[v]) {
@@ -587,16 +707,19 @@ void Topo::updateVertex(int v) {
     };
 }
 
-void Topo::cooling(double initTemper, double temperScale, int maxMove, int time, volatile sig_atomic_t &tle) {
-    auto start = system_clock::now();
-    // time_t tt = system_clock::to_time_t(start);
-    // cout << "now is " << ctime(&tt);
+void Topo::cooling(double initTemper, double temperScale, int maxMove, int maxFail, 
+                    system_clock::time_point start, int time, volatile sig_atomic_t &tle) {
     double temper = initTemper;
+    double heatScale = 1.0 / pow(temperScale, maxFail);
     list<int> bestOrder = order;
-    int nbLoop = 0, nbJump = 0;
+    int nbLoop = 0, nbJump = 0, nbFail = 0;
     while (true) {
         int nbMove = 0;
+        bool isFailed = true;
         while (nbMove < maxMove) {
+            if (duration_cast<seconds>(system_clock::now() - start).count() >= time) {
+                raise(SIGTERM);
+            }
             if (tle || vertexNotInOrder.size() == 0) {
                 statistic[0] = nbLoop;
                 statistic[1] = nbJump;
@@ -617,61 +740,301 @@ void Topo::cooling(double initTemper, double temperScale, int maxMove, int time,
                 nbMove++;
                 if (order.size() > bestOrder.size()) {
                     bestOrder = order;
+                    isFailed = false;
                 }
             }
-            if (duration_cast<seconds>(system_clock::now() - start).count() >= time) {
-                raise(SIGTERM);
-            }
         }
-        temper *= temperScale;
-    }
-    setByOrder(bestOrder);
-}
-
-void Topo::cooling1(int maxFail, int scale, int maxMove, int time, volatile sig_atomic_t &tle) {
-    auto start = system_clock::now();
-    // time_t tt = system_clock::to_time_t(start);
-    // cout << "now is " << ctime(&tt);
-    list<int> bestOrder = order;
-    int nbFail = 0;
-    int nbLoop = 0, nbMove = 0;
-    int cnt = 1;
-    int v = 0, i = 0;
-    Direction d = LEFT;
-    while (true) {
-        nbLoop++;
-        chooseRandomMove(v, i, d);
-        int delta = (d == LEFT) ? deltaLeft[v] : deltaRight[v];
-        if (delta < 0) {
-            insertOrder(v, i, d);
-            nbFail = 0;
-            nbMove++;
-            if (order.size() > bestOrder.size()) {
-                bestOrder = order;
+        if (isFailed) {
+            nbFail++;
+            if (nbFail < maxFail) {
+                temper *= temperScale;
+            } else {
+                nbFail = 0;
+                temper *= heatScale;
+                if (temper > initTemper) {
+                    temper = initTemper;
+                }
             }
         } else {
-            nbFail++;
-            if (nbFail >= maxFail) {
-                insertOrder(v, i, d);
-                nbFail = 0;
-                nbMove++;
-            }
+            nbFail = 0;
+            temper *= temperScale;
         }
-        if (nbMove >= cnt * maxMove) {
-            maxFail += scale;
-            cnt++;
-        }
-        if (duration_cast<seconds>(system_clock::now() - start).count() >= time) {
-            // tt = system_clock::to_time_t(system_clock::now());
-            // cout << ctime(&tt);
-            raise(SIGTERM);
-        }
-        if (tle) {
+    }
+}
+
+double Topo::objFunc(list<int> order) {
+    return order.size();
+}
+
+void Topo::search1(int M, int N, int numRand, int maxFail, int time, volatile sig_atomic_t &tle) {
+    auto start = system_clock::now();
+    list<int> bestOrder = order;
+    int nbLoop = 0, nbMove = 0;
+    while (true) {
+        if (tle || vertexNotInOrder.size() == 0) {
             statistic[0] = nbLoop;
             statistic[1] = nbMove;
             statistic[2] = graph.vertex.size() - bestOrder.size() + graph.excludeVertex.size();
             setByOrder(bestOrder);
             return;
+        }
+        nbLoop++;
+        // 往M个方向走N步，持续记录移除的所有点，后N-n步从移除的所有点中选择
+        typedef tuple<int, int, Direction, double> State;
+        auto state = vector<vector<State>>(M);
+        pair<int, int> bestPos = make_pair(-1, -1);
+        double bestFunc = numeric_limits<double>::min();
+        for (int i = 0; i < M; ++i) {
+            intSet removeSet;
+            int fail = 0;
+            double lastFunc = objFunc(order);
+            Topo topo = copy();
+            for (int j = 0; j < N; ++j) {
+                int v = 0, pos = 0;
+                Direction d = LEFT;
+                if ((j < numRand) || (removeSet.size() == 0)) {
+                    topo.chooseRandomMove(v, pos, d);
+                } else {
+                    int minDelta = INT_MAX;
+                    for (int curV : removeSet) {
+                        if (topo.isOutdated[curV]) {
+                            topo.updateVertex(curV);
+                            topo.isOutdated[curV] = false;
+                        }
+                        if (topo.deltaLeft[curV] < minDelta) {
+                            minDelta = topo.deltaLeft[curV];
+                            v = curV;
+                            pos = vLeft[curV];
+                            d = LEFT;
+                        }
+                        if (topo.deltaRight[curV] < minDelta) {
+                            minDelta = topo.deltaRight[curV];
+                            v = curV;
+                            pos = vRight[curV];
+                            d = RIGHT;
+                        }
+                    }
+                }
+                removeSet.erase(v);
+                intSet rmSet = topo.insertOrder(v, pos, d);
+                removeSet.insert(rmSet.begin(), rmSet.end());
+                double curFunc = topo.objFunc(topo.order);
+                state[i].push_back(make_tuple(v, pos, d, curFunc));
+                if (curFunc > bestFunc) {
+                    bestFunc = curFunc;
+                    bestPos = make_pair(i, j);
+                }
+                if (curFunc <= lastFunc) {
+                    fail++;
+                } else {
+                    fail = 0;
+                }
+                if (fail > maxFail) {
+                    break;
+                }
+                lastFunc = curFunc;
+            }
+            topo.vertexNotInOrder.clear();
+        }
+        int i = bestPos.first;
+        nbMove += bestPos.second + 1;
+        for (int j = 0; j <= bestPos.second; ++j) {
+            int v = get<0>(state[i][j]), pos = get<1>(state[i][j]);
+            Direction d = get<2>(state[i][j]);
+            insertOrder(v, pos, d);
+            if (order.size() > bestOrder.size()) {
+                bestOrder = order;
+            }
+        }
+        if (duration_cast<seconds>(system_clock::now() - start).count() >= time) {
+            raise(SIGTERM);
+        }
+    }
+}
+
+void Topo::search2(int M, int N, int numRand, int maxFail, int time, volatile sig_atomic_t &tle) {
+    auto start = system_clock::now();
+    list<int> bestOrder = order;
+    int nbLoop = 0, nbMove = 0;
+    typedef tuple<int, int, Direction, double> State;
+    while (true) {
+        if (tle || vertexNotInOrder.size() == 0) {
+            statistic[0] = nbLoop;
+            statistic[1] = nbMove;
+            statistic[2] = graph.vertex.size() - bestOrder.size() + graph.excludeVertex.size();
+            setByOrder(bestOrder);
+            return;
+        }
+        nbLoop++;
+        // 往M个方向走N步，持续记录移除的所有点，除第一步外每一步所选取的点都来自前一步移除的点集
+        auto state = vector<vector<State>>(M);
+        pair<int, int> bestPos = make_pair(-1, -1);
+        double bestFunc = numeric_limits<double>::min();
+        for (int i = 0; i < M; ++i) {
+            intSet removeSet;
+            int fail = 0;
+            double lastFunc = objFunc(order);
+            Topo topo = copy();
+            for (int j = 0; j < N; ++j) {
+                int v = 0, pos = 0;
+                Direction d = LEFT;
+                if (removeSet.size() == 0) {
+                    topo.chooseRandomMove(v, pos, d);
+                } else if (j < numRand) {
+                    sample(removeSet.begin(), removeSet.end(), &v, 1, engine);
+                    if (topo.isOutdated[v]) {
+                        topo.updateVertex(v);
+                        topo.isOutdated[v] = false;
+                    }
+                    d = (distr(engine) < 0.5) ? LEFT : RIGHT;
+                    pos = (d == LEFT) ? vLeft[v] : vRight[v];
+                } else {
+                    int minDelta = INT_MAX;
+                    for (int curV : removeSet) {
+                        if (topo.isOutdated[curV]) {
+                            topo.updateVertex(curV);
+                            topo.isOutdated[curV] = false;
+                        }
+                        if (topo.deltaLeft[curV] < minDelta) {
+                            minDelta = topo.deltaLeft[curV];
+                            v = curV;
+                            pos = vLeft[curV];
+                            d = LEFT;
+                        }
+                        if (topo.deltaRight[curV] < minDelta) {
+                            minDelta = topo.deltaRight[curV];
+                            v = curV;
+                            pos = vRight[curV];
+                            d = RIGHT;
+                        }
+                    }
+                }
+                removeSet = topo.insertOrder(v, pos, d);
+                double curFunc = topo.objFunc(topo.order);
+                state[i].push_back(make_tuple(v, pos, d, curFunc));
+                if (curFunc > bestFunc) {
+                    bestFunc = curFunc;
+                    bestPos = make_pair(i, j);
+                }
+                if (curFunc <= lastFunc) {
+                    fail++;
+                } else {
+                    fail = 0;
+                }
+                if (fail > maxFail) {
+                    break;
+                }
+                lastFunc = curFunc;
+            }
+            topo.vertexNotInOrder.clear();
+        }
+        int i = bestPos.first;
+        nbMove += bestPos.second + 1;
+        for (int j = 0; j <= bestPos.second; ++j) {
+            int v = get<0>(state[i][j]), pos = get<1>(state[i][j]);
+            Direction d = get<2>(state[i][j]);
+            insertOrder(v, pos, d);
+            if (order.size() > bestOrder.size()) {
+                bestOrder = order;
+            }
+        }
+        if (duration_cast<seconds>(system_clock::now() - start).count() >= time) {
+            raise(SIGTERM);
+        }
+    }
+}
+
+void Topo::search3(int M, int N, int numRand, int maxFail, int time, volatile sig_atomic_t &tle) {
+    auto start = system_clock::now();
+    list<int> bestOrder = order;
+    int nbLoop = 0, nbMove = 0;
+    typedef tuple<int, int, Direction, double> State;
+    while (true) {
+        if (tle || vertexNotInOrder.size() == 0) {
+            statistic[0] = nbLoop;
+            statistic[1] = nbMove;
+            statistic[2] = graph.vertex.size() - bestOrder.size() + graph.excludeVertex.size();
+            setByOrder(bestOrder);
+            return;
+        }
+        nbLoop++;
+        // 往M个方向走N步，持续记录移除的所有点，除第一步外每一步所选取的点都来自前一步移除的点集
+        auto state = vector<vector<State>>(M);
+        pair<int, int> bestPos = make_pair(-1, -1);
+        double bestFunc = numeric_limits<double>::min();
+        for (int i = 0; i < M; ++i) {
+            intSet removeSet;
+            int fail = 0;
+            double lastFunc = objFunc(order);
+            Topo topo = copy();
+            for (int j = 0; j < N; ++j) {
+                int v = 0, pos = 0;
+                Direction d = LEFT;
+                if (removeSet.size() == 0) {
+                    topo.chooseRandomMove(v, pos, d);
+                } else if (j < numRand) {
+                    sample(removeSet.begin(), removeSet.end(), &v, 1, engine);
+                    if (topo.isOutdated[v]) {
+                        topo.updateVertex(v);
+                        topo.isOutdated[v] = false;
+                    }
+                    d = (distr(engine) < 0.5) ? LEFT : RIGHT;
+                    pos = (d == LEFT) ? vLeft[v] : vRight[v];
+                } else {
+                    int minDelta = INT_MAX;
+                    for (int curV : removeSet) {
+                        if (topo.isOutdated[curV]) {
+                            topo.updateVertex(curV);
+                            topo.isOutdated[curV] = false;
+                        }
+                        if (topo.deltaLeft[curV] < minDelta) {
+                            minDelta = topo.deltaLeft[curV];
+                            v = curV;
+                            pos = vLeft[curV];
+                            d = LEFT;
+                        }
+                        if (topo.deltaRight[curV] < minDelta) {
+                            minDelta = topo.deltaRight[curV];
+                            v = curV;
+                            pos = vRight[curV];
+                            d = RIGHT;
+                        }
+                    }
+                }
+                removeSet.erase(v);
+                intSet rmSet = topo.insertOrder(v, pos, d);
+                removeSet.insert(rmSet.begin(), rmSet.end());
+                //removeSet = topo.insertOrder(v, pos, d);
+                double curFunc = topo.objFunc(topo.order);
+                state[i].push_back(make_tuple(v, pos, d, curFunc));
+                if (curFunc > bestFunc) {
+                    bestFunc = curFunc;
+                    bestPos = make_pair(i, j);
+                }
+                if (curFunc <= lastFunc) {
+                    fail++;
+                } else {
+                    fail = 0;
+                }
+                if (fail > maxFail) {
+                    break;
+                }
+                lastFunc = curFunc;
+            }
+            topo.vertexNotInOrder.clear();
+        }
+        int i = bestPos.first;
+        nbMove += bestPos.second + 1;
+        for (int j = 0; j <= bestPos.second; ++j) {
+            int v = get<0>(state[i][j]), pos = get<1>(state[i][j]);
+            Direction d = get<2>(state[i][j]);
+            insertOrder(v, pos, d);
+            if (order.size() > bestOrder.size()) {
+                bestOrder = order;
+            }
+        }
+        if (duration_cast<seconds>(system_clock::now() - start).count() >= time) {
+            raise(SIGTERM);
         }
     }
 }
