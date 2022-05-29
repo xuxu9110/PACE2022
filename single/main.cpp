@@ -279,6 +279,7 @@ public:
 
     void preprocessing();
     void init();
+    void init(Graph g);
     void clear();
     // 重新调整score以保证相邻点的分数差距
     void modifyScore();
@@ -295,8 +296,10 @@ public:
     // 更新点v的vL/R和deltaL/R
     void updateVertex(int v);
     // 用退火算法寻找最长拓扑排序
-    void cooling(double initTemper, double temperScale, int maxMove, int maxFail, 
-                    system_clock::time_point start, int time, volatile sig_atomic_t &tle);
+    void cooling(double initTemper, double temperScale, int maxMove, int initFail, int failStep, 
+        system_clock::time_point start, int time, volatile sig_atomic_t &tle);
+    vector<int> coolingWithScc(double initTemper, double temperScale, 
+        system_clock::time_point start, int time, volatile sig_atomic_t &tle);
     // 生成初始解
     void generateInitialOrder();
 };
@@ -659,6 +662,11 @@ void Topo::init() {
     statistic = vector<int>(3, 0);
 }
 
+void Topo::init(Graph g) {
+    graph = g;
+    clear();
+}
+
 void Topo::modifyScore() {
     score = vector<Sc>(graph.n + 1, INVALID);
     int size = order.size() + 1;
@@ -826,12 +834,13 @@ void Topo::updateVertex(int v) {
     };
 }
 
-void Topo::cooling(double initTemper, double temperScale, int maxMove, int maxFail, 
-                    system_clock::time_point start, int time, volatile sig_atomic_t &tle) {
+void Topo::cooling(double initTemper, double temperScale, int maxMove, int initFail, int failStep, 
+        system_clock::time_point start, int time, volatile sig_atomic_t &tle) {
     double temper = initTemper;
-    double heatScale = 1.0 / pow(temperScale, maxFail);
+    int maxFail = initFail;
     list<int> bestOrder = order;
     int nbLoop = 0, nbJump = 0, nbFail = 0;
+    bool findBetter = false;
     while (true) {
         int nbMove = 0;
         bool isFailed = true;
@@ -860,23 +869,178 @@ void Topo::cooling(double initTemper, double temperScale, int maxMove, int maxFa
                 if (order.size() > bestOrder.size()) {
                     bestOrder = order;
                     isFailed = false;
+                    findBetter = true;
                 }
             }
         }
-        if (isFailed) {
+        if (findBetter && isFailed) {
             nbFail++;
             if (nbFail < maxFail) {
                 temper *= temperScale;
             } else {
                 nbFail = 0;
-                temper *= heatScale;
+                temper *= 1.0 / pow(temperScale, maxFail);
                 if (temper > initTemper) {
                     temper = initTemper;
                 }
+                maxFail += failStep;
             }
         } else {
             nbFail = 0;
+            // maxFail = initFail;
             temper *= temperScale;
+        }
+    }
+}
+
+vector<int> Topo::coolingWithScc(double initTemper, double temperScale, 
+    system_clock::time_point start, int time, volatile sig_atomic_t &tle) {
+    if (graph.vertex.empty()) {
+        return vector<int>();
+    }
+    graph.getScc();
+    vector<Topo> topos;
+    int sccNum = graph.sccNum;
+    for (int i = 0; i < sccNum; ++i) {
+        auto vertices = graph.scc[i];
+        Graph g;
+        g.n = vertices.size();
+        g.startFrom = vector<vector<int>>(g.n + 1);
+        g.endTo = vector<vector<int>>(g.n + 1);
+        auto lookup = vector<int>(graph.n + 1, -1);
+        g.vertex.clear();
+        for (int j = 1; j <= g.n; ++j) {
+            g.vertex.insert(j);
+            lookup[vertices[j - 1]] = j;
+        }
+        for (int j = 1; j <= g.n; ++j) {
+            for (int end : graph.startFrom[vertices[j - 1]]) {
+                if (lookup[end] > 0) {
+                    g.startFrom[j].push_back(lookup[end]);
+                    g.endTo[lookup[end]].push_back(j);
+                }
+            }
+        }
+
+        Topo topo;
+        topo.init(g);
+        topos.push_back(topo);
+    }
+
+    auto temper = vector<double>(sccNum, initTemper);
+    auto maxFail = vector<int>(sccNum);
+    auto failStep = vector<int>(sccNum);
+    auto maxMove = vector<int>(sccNum);
+    auto bestOrder = vector<list<int>>(sccNum);
+    auto nbFail = vector<int>(sccNum, 0);
+    auto findBetter = vector<bool>(sccNum, false);
+    auto isEnd = vector<bool>(sccNum, false);
+    auto endRound = vector<int>(sccNum, INT32_MAX);
+    for (int i = 0; i < sccNum; ++i) {
+        topos[i].generateInitialOrder();
+        int size = topos[i].graph.n;
+        if (size <= 2000) {
+            maxFail[i] = 20;
+            failStep[i] = 5;
+            maxMove[i] = 6 * size;
+        } else {
+            maxFail[i] = 30;
+            failStep[i] = 20;
+            maxMove[i] = 3 * size;
+        }
+        bestOrder[i] = topos[i].order;
+        if (size <= 20) {
+            endRound[i] = 20;
+            findBetter[i] = true;
+        } else if (size <= 100) {
+            endRound[i] = 40;
+            findBetter[i] = true;
+        }
+    }
+    while (true) {
+        int endCnt = 0;
+        for (int i = 0; i < sccNum; ++i) {
+            if (isEnd[i]) {
+                endCnt++;
+                continue;
+            }
+            Topo* topo = &(topos[i]);
+            int nbMove = 0;
+            bool isFailed = true;
+            while (nbMove < maxMove[i]) {
+                if (duration_cast<seconds>(system_clock::now() - start).count() >= time) {
+                    raise(SIGTERM);
+                }
+                if (tle) {
+                    vector<int> res;
+                    for (int j = 0; j < sccNum; ++j) {
+                        auto isInOrder = vector<bool>(topos[j].graph.n + 1, false);
+                        for (int v : bestOrder[j]) {
+                            isInOrder[v] = true;
+                        }
+                        for (int v = 1; v <= topos[j].graph.n; ++v) {
+                            if (!isInOrder[v]) {
+                                res.push_back(graph.scc[j][v - 1]);
+                            }
+                        }
+                    }
+                    return res;
+                }
+                if (topo->vertexNotInOrder.size() == 0) {
+                    isEnd[i] = true;
+                    break;
+                }
+                int v = 0, pos = 0;
+                Direction d = LEFT;
+                topo->chooseRandomMove(v, pos, d);
+                int delta = (d == LEFT) ? topo->deltaLeft[v] : topo->deltaRight[v];
+                if ((delta <= 0) || (exp(-delta * 1.0 / temper[i]) >= distr(engine))) {
+                    topo->insertOrder(v, pos, d);
+                    nbMove++;
+                    if (topo->order.size() > bestOrder[i].size()) {
+                        bestOrder[i] = topo->order;
+                        isFailed = false;
+                        findBetter[i] = true;
+                    }
+                }
+            }
+            if (nbMove >= maxMove[i]) {
+                if (findBetter[i] && isFailed) {
+                    nbFail[i]++;
+                    if (nbFail[i] < maxFail[i]) {
+                        temper[i] *= temperScale;
+                    } else {
+                        if (nbFail[i] >= endRound[i]) {
+                            isEnd[i] = true;
+                            continue;
+                        }
+                        nbFail[i] = 0;
+                        temper[i] *= 1.0 / pow(temperScale, maxFail[i]);
+                        if (temper[i] > initTemper) {
+                            temper[i] = initTemper;
+                        }
+                        maxFail[i] += failStep[i];
+                    }
+                } else {
+                    nbFail[i] = 0;
+                    temper[i] *= temperScale;
+                }
+            }
+        }
+        if (endCnt == sccNum) {
+            vector<int> res;
+            for (int j = 0; j < sccNum; ++j) {
+                auto isInOrder = vector<bool>(topos[j].graph.n + 1, false);
+                for (int v : bestOrder[j]) {
+                    isInOrder[v] = true;
+                }
+                for (int v = 1; v <= topos[j].graph.n; ++v) {
+                    if (!isInOrder[v]) {
+                        res.push_back(graph.scc[j][v - 1]);
+                    }
+                }
+            }
+            return res;
         }
     }
 }
@@ -943,19 +1107,26 @@ int main() {
 
     Topo topo;
     topo.init();
+    /*
     topo.generateInitialOrder();
-    int sizeScale = 6, size = topo.graph.vertex.size();
-    if (size > 10000) {
-        sizeScale = 3;
-    } else if (size > 2000) {
-        sizeScale = 5;
+    int size = topo.graph.vertex.size();
+    if (size <= 2000) {
+        topo.cooling(0.6, 0.99, 6 * size + 1, 20, 5, start, 600, tle);
+    } else {
+        topo.cooling(0.6, 0.99, 3 * size + 1, 30, 20, start, 600, tle);
     }
-    topo.cooling(0.6, 0.99, sizeScale * size + 1, 30, start, 600, tle);
+    */
+    auto coolingRes = topo.coolingWithScc(0.6, 0.99, start, 600, tle);
     vector<int> res(topo.graph.excludeVertex.begin(), topo.graph.excludeVertex.end());
+    /*
     for (int i : topo.graph.vertex) {
         if (!topo.pos[i].has_value()) {
             res.push_back(i);
         }
+    }
+    */
+    for (int i : coolingRes) {
+        res.push_back(i);
     }
     sort(res.begin(), res.end());
     for (int val : res) {

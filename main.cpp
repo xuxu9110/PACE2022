@@ -38,22 +38,35 @@ int main(int argc, char *argv[]) {
     statisticFile << "  \"exclude_size\": " << topo.graph.excludeVertex.size() << "," << endl;
     // topo.graph.showGraph();
     start = system_clock::now();
+
+    /*
     topo.generateInitialOrder();
     end = system_clock::now();
     statisticFile << "  \"generate_initial_order_time\": " << duration_cast<microseconds>(end - start).count() << "," << endl;
     statisticFile << "  \"initial_order_size\": " << topo.order.size() << "," << endl;
     start = system_clock::now();
     int size = topo.graph.vertex.size();
-    topo.cooling(0.6, 0.99, 3 * size + 1, 30, 20, allStart, 600, tle);
-    //topo.search3(8, 10, 3, 3, 600, tle);
+    if (size <= 2000) {
+        topo.cooling(0.6, 0.99, 6 * size + 1, 20, 5, start, 600, tle);
+    } else {
+        topo.cooling(0.6, 0.99, 3 * size + 1, 30, 20, start, 600, tle);
+    }
+    */
+
+    auto coolingRes = topo.coolingWithScc(0.6, 0.99, allStart, 600, tle);
     end = system_clock::now();
     statisticFile << "  \"cooling_time\": " << duration_cast<microseconds>(end - start).count() << "," << endl;
 
     vector<int> res(topo.graph.excludeVertex.begin(), topo.graph.excludeVertex.end());
+    /*
     for (int i : topo.graph.vertex) {
         if (!topo.pos[i].has_value()) {
             res.push_back(i);
         }
+    }
+    */
+    for (int i : coolingRes) {
+        res.push_back(i);
     }
     sort(res.begin(), res.end());
     ofstream resultFile(resultPath + resultFileName);
@@ -61,10 +74,13 @@ int main(int argc, char *argv[]) {
         resultFile << val << endl;
     }
     resultFile.close();
-    statisticFile << "  \"feedback_set_size\": " << res.size() << "," << endl;
+    statisticFile << "  \"feedback_set_size\": " << res.size() << endl; // << "," << endl;
+    /*
     statisticFile << "  \"number_of_loop\": " << topo.statistic[0] << "," << endl;
     statisticFile << "  \"number_of_move\": " << topo.statistic[1] << "," << endl;
-    statisticFile << "  \"size_of_set\": " << topo.statistic[2] << "," << endl;
+    statisticFile << "  \"size_of_set\": " << topo.statistic[2] << endl; // << "," << endl;
+    */
+    /*
     statisticFile << "  \"temper_degree\": [";
     for (auto it = topo.temperDegree.begin(); ; ) {
         statisticFile << *it;
@@ -75,6 +91,7 @@ int main(int argc, char *argv[]) {
         }
     }
     statisticFile << "]" << endl;
+    */
     statisticFile << "}";
     statisticFile.close();
     return 0;

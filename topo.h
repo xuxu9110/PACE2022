@@ -54,7 +54,6 @@ public:
     void CORE();
     void DOME();
 
-    void dealWithSmallSCC(int maxSize);
     bool isDAG(vector<int> vertices);
 };
 
@@ -91,10 +90,6 @@ public:
     vector<int> temperDegree;
     // 优化随机算法用
     int k;
-    // 每个点在拓扑排序中的时间
-    vector<int> timeInOrder;
-    // 每个点上次加入拓扑排序的时间
-    vector<int> lastTimeInsert;
     
     // 生成随机数用
     default_random_engine engine;
@@ -104,6 +99,7 @@ public:
     void preprocessing();
     void init();
     void init(string filpath);
+    void init(Graph g);
     void clear();
     void showOrder();
     void showScore();
@@ -124,13 +120,16 @@ public:
     // 用退火算法寻找最长拓扑排序
     void cooling(double initTemper, double temperScale, int maxMove, int initFail, int failStep, 
         system_clock::time_point start, int time, volatile sig_atomic_t &tle);
+    vector<int> coolingWithScc(double initTemper, double temperScale, 
+        system_clock::time_point start, int time, volatile sig_atomic_t &tle);
     // 目标函数，越大越好
-    double objFunc(list<int> order);
+    // double objFunc(list<int> order);
     // 往M个方向走N步，持续记录移除的所有点，从移除的所有点中选择
-    void search1(int M, int N, int numRand, int maxFail, int time, volatile sig_atomic_t &tle);
+    // void search1(int M, int N, int numRand, int maxFail, int time, volatile sig_atomic_t &tle);
     // 往M个方向走N步，每一步所选取的点都来自前一步移除的点集
-    void search2(int M, int N, int numRand, int maxFail, int time, volatile sig_atomic_t &tle);
-    void search3(int M, int N, int numRand, int maxFail, int time, volatile sig_atomic_t &tle);
+    // void search2(int M, int N, int numRand, int maxFail, int time, volatile sig_atomic_t &tle);
+    // void search3(int M, int N, int numRand, int maxFail, int time, volatile sig_atomic_t &tle);
+
     // 生成初始解
     void generateInitialOrder();
 };
