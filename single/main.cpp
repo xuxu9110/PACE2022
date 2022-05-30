@@ -268,8 +268,6 @@ public:
     // deltaRight[i]表示将点i接在vRight[i]前面时反馈集大小的变化
     vector<int> deltaRight;
 
-    // [0]表示循环次数，[1]表示移动步数，[2]表示最佳反馈集大小
-    vector<int> statistic;
     // 优化随机算法用
     int k;
     
@@ -659,7 +657,6 @@ void Topo::init() {
     clear();
     engine = default_random_engine(time(nullptr));
     distr = uniform_real_distribution<>(0.0, 1.0);
-    statistic = vector<int>(3, 0);
 }
 
 void Topo::init(Graph g) {
@@ -839,7 +836,7 @@ void Topo::cooling(double initTemper, double temperScale, int maxMove, int initF
     double temper = initTemper;
     int maxFail = initFail;
     list<int> bestOrder = order;
-    int nbLoop = 0, nbJump = 0, nbFail = 0;
+    int nbFail = 0;
     bool findBetter = false;
     while (true) {
         int nbMove = 0;
@@ -849,21 +846,14 @@ void Topo::cooling(double initTemper, double temperScale, int maxMove, int initF
                 raise(SIGTERM);
             }
             if (tle || vertexNotInOrder.size() == 0) {
-                statistic[0] = nbLoop;
-                statistic[1] = nbJump;
-                statistic[2] = graph.vertex.size() - bestOrder.size() + graph.excludeVertex.size();
                 setByOrder(bestOrder);
                 return;
             }
-            nbLoop++;
             int v = 0, i = 0;
             Direction d = LEFT;
             chooseRandomMove(v, i, d);
             int delta = (d == LEFT) ? deltaLeft[v] : deltaRight[v];
             if ((delta <= 0) || (exp(-delta * 1.0 / temper) >= distr(engine))) {
-                if (delta > 0) {
-                    nbJump++;
-                }
                 insertOrder(v, i, d);
                 nbMove++;
                 if (order.size() > bestOrder.size()) {
@@ -943,6 +933,10 @@ vector<int> Topo::coolingWithScc(double initTemper, double temperScale,
             maxFail[i] = 20;
             failStep[i] = 5;
             maxMove[i] = 6 * size;
+        } else if (size >= 30000) {
+            maxFail[i] = 60;
+            failStep[i] = 40;
+            maxMove[i] = 1.5 * size;
         } else {
             maxFail[i] = 30;
             failStep[i] = 20;
@@ -950,13 +944,14 @@ vector<int> Topo::coolingWithScc(double initTemper, double temperScale,
         }
         bestOrder[i] = topos[i].order;
         if (size <= 20) {
-            endRound[i] = 20;
+            endRound[i] = 25;
             findBetter[i] = true;
         } else if (size <= 100) {
             endRound[i] = 40;
             findBetter[i] = true;
         }
     }
+    int cnt = 0;
     while (true) {
         int endCnt = 0;
         for (int i = 0; i < sccNum; ++i) {
@@ -968,8 +963,12 @@ vector<int> Topo::coolingWithScc(double initTemper, double temperScale,
             int nbMove = 0;
             bool isFailed = true;
             while (nbMove < maxMove[i]) {
-                if (duration_cast<seconds>(system_clock::now() - start).count() >= time) {
-                    raise(SIGTERM);
+                cnt++;
+                if (cnt >= 100000) {
+                    cnt = 0;
+                    if (duration_cast<seconds>(system_clock::now() - start).count() >= time) {
+                        raise(SIGTERM);
+                    }
                 }
                 if (tle) {
                     vector<int> res;
@@ -1023,7 +1022,9 @@ vector<int> Topo::coolingWithScc(double initTemper, double temperScale,
                     }
                 } else {
                     nbFail[i] = 0;
-                    temper[i] *= temperScale;
+                    if (!findBetter[i]) {
+                        temper[i] *= temperScale;
+                    }
                 }
             }
         }

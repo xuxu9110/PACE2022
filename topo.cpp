@@ -789,6 +789,10 @@ vector<int> Topo::coolingWithScc(double initTemper, double temperScale,
             maxFail[i] = 20;
             failStep[i] = 5;
             maxMove[i] = 6 * size;
+        } else if (size >= 30000) {
+            maxFail[i] = 60;
+            failStep[i] = 40;
+            maxMove[i] = 1.5 * size;
         } else {
             maxFail[i] = 30;
             failStep[i] = 20;
@@ -803,6 +807,7 @@ vector<int> Topo::coolingWithScc(double initTemper, double temperScale,
             findBetter[i] = true;
         }
     }
+    int cnt = 0;
     while (true) {
         int endCnt = 0;
         for (int i = 0; i < sccNum; ++i) {
@@ -814,8 +819,12 @@ vector<int> Topo::coolingWithScc(double initTemper, double temperScale,
             int nbMove = 0;
             bool isFailed = true;
             while (nbMove < maxMove[i]) {
-                if (duration_cast<seconds>(system_clock::now() - start).count() >= time) {
-                    raise(SIGTERM);
+                cnt++;
+                if (cnt >= 100000) {
+                    cnt = 0;
+                    if (duration_cast<seconds>(system_clock::now() - start).count() >= time) {
+                        raise(SIGTERM);
+                    }
                 }
                 if (tle) {
                     vector<int> res;
@@ -869,7 +878,9 @@ vector<int> Topo::coolingWithScc(double initTemper, double temperScale,
                     }
                 } else {
                     nbFail[i] = 0;
-                    temper[i] *= temperScale;
+                    if (!findBetter[i]) {
+                        temper[i] *= temperScale;
+                    }
                 }
             }
         }
