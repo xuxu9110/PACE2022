@@ -1,11 +1,15 @@
 # PACE2022
-本算法来自团队Hust_Huawei的成员Junzhou Xu，为PACE2022的参赛之作。（[PACE2022官网](https://pacechallenge.org/2022/) ）  
-The algorithm made by Junzhou Xu in team Hust_Huawei is a submission for PACE2022. ([PACE2022 Official Website](https://pacechallenge.org/2022/) )  
+本算法来自团队Hust_Huawei的成员Junzhou Xu，为PACE2022的参赛之作。（[PACE2022官网](https://pacechallenge.org/2022/)）  
+The algorithm made by Junzhou Xu in team Hust_Huawei is a submission for PACE2022. ([PACE2022 Official Website](https://pacechallenge.org/2022/))  
+
+## 算法说明 Algorithm Description
+6月15日前补充pdf链接。  
+Add pdf link by June 15.  
   
 ## 编译 Compilation
 ``g++ single\main.cpp -o Huawei_TCS_DFVS_Solver -std=c++17 -O3``  
-编译生成符合[optil](https://www.optil.io/optilion/problem/3198) 要求的程序。  
-Generate program that meet the requirements of [optil](https://www.optil.io/optilion/problem/3198) .  
+编译生成符合[optil](https://www.optil.io/optilion/problem/3198)要求的程序。  
+Generate program that meet the requirements of [optil](https://www.optil.io/optilion/problem/3198).  
   
 ``g++ *.h *.cpp -o main -std=c++17 -O3``  
 编译生成适合experiment.py实验的程序。  
