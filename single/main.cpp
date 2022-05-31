@@ -12,6 +12,7 @@
 #include <iostream>
 #include <sstream>
 #include <ctime>
+#include <optional>
 
 using namespace std;
 using namespace chrono;
