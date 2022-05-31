@@ -7,7 +7,7 @@ The algorithm made by Junzhou Xu in team Hust_Huawei is a submission for PACE202
 Add pdf link by June 15.  
   
 ## 编译 Compilation
-``g++ single\main.cpp -o Huawei_TCS_DFVS_Solver -std=c++17 -O3``  
+``g++ single\main.cpp -o Huawei_TCS_DFVS_Solver -std=c++17 -O3 -static``  
 编译生成符合[optil](https://www.optil.io/optilion/problem/3198)要求的程序。  
 Generate program that meet the requirements of [optil](https://www.optil.io/optilion/problem/3198).  
   
