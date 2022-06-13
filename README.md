@@ -1,6 +1,7 @@
-# PACE2022
-本算法为PACE2022的参赛之作。（[PACE2022官网](https://pacechallenge.org/2022/)）  
-The algorithm is a submission for PACE2022. ([PACE2022 Official Website](https://pacechallenge.org/2022/))  
+# Huawei_TCS_DFVS_Solver
+[![DOI](https://zenodo.org/badge/473513982.svg)](https://zenodo.org/badge/latestdoi/473513982)  
+本求解器为PACE2022的参赛之作。（[PACE2022官网](https://pacechallenge.org/2022/)）  
+The solver is a submission for PACE2022. ([PACE2022 Official Website](https://pacechallenge.org/2022/))  
 
 ## 算法说明 Algorithm Description
 6月15日前补充pdf链接。  
@@ -45,3 +46,7 @@ Doing experiments to all graphs in `{datapath}`. `{datapath}` defaults to `data`
   
 ## 输出格式 Output Format
 一系列整数，表示找到的最小反馈集所包含的点编号
+
+## 参考文献 Reference
+* Philippe Galinier, Eunice Lemamou, and Mohamed Wassim Bouzidi. Applying local search to the feedback vertex set problem. Journal of Heuristics, 19(5):797–818, oct 2013. doi: 10.1007/s10732-013-9224-z.  
+* Hen-Ming Lin and Jing-Yang Jou. On computing the minimum feedback vertex set of a directed graph by contraction operations. IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems, 19(3):295–307, mar 2000. doi:10.1109/43.833199.  
