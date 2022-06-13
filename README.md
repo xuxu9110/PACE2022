@@ -1,6 +1,6 @@
 # PACE2022
-本算法来自团队Hust_Huawei的成员Junzhou Xu，为PACE2022的参赛之作。（[PACE2022官网](https://pacechallenge.org/2022/)）  
-The algorithm made by Junzhou Xu in team Hust_Huawei is a submission for PACE2022. ([PACE2022 Official Website](https://pacechallenge.org/2022/))  
+本算法为PACE2022的参赛之作。（[PACE2022官网](https://pacechallenge.org/2022/)）  
+The algorithm is a submission for PACE2022. ([PACE2022 Official Website](https://pacechallenge.org/2022/))  
 
 ## 算法说明 Algorithm Description
 6月15日前补充pdf链接。  
