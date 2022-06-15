@@ -4,8 +4,7 @@
 The solver is a submission for PACE2022. ([PACE2022 Official Website](https://pacechallenge.org/2022/))  
 
 ## 算法说明 Algorithm Description
-6月15日前补充pdf链接。  
-Add pdf link by June 15.  
+[pdf文件](PACE2022_Huawei_TCS_DFVS_Solver_Description.pdf)
   
 ## 编译 Compilation
 ``g++ single\main.cpp -o Huawei_TCS_DFVS_Solver -std=c++17 -O3 -static``  
